@@ -114,7 +114,7 @@ AI_NAMES_POOL = [
 ]
 
 JOBS = {
-    "도박사": "🎰 1억 이상 확률 2배! (100만 이하 획득 시 점수 0점)",
+    "도박사": "🎰 1억 이상 확률 2배! (100만 미만 획득 시 점수 0점, 아케인은 생존 가능)",
     "수집가": "📚 신규 아우라 최초 획득 시 보너스 점수 +20점",
     "암살자": "🗡️ 매 턴 순위표 아래 사람 점수 -15점 차감"
 }
@@ -240,16 +240,15 @@ def init_game(selected_job):
 
 st.title("⚔️ 아우라 종합 시뮬레이터")
 
-# 탭 메뉴 구성 (시너지 도감 탭 추가)
 tab_battle, tab_gacha, tab_synergy = st.tabs(["⚔️ 100인 포인트 배틀로얄", "🎰 마스터 핸드 뽑기 창", "📖 시너지 도감 & 설명"])
 
 with tab_battle:
   if not st.session_state.game_started:
     st.markdown("""
     ### 📜 시스템 안내
-    - **🎭 히든 직업**: 도박사(1억 이상 2배 / 100만 이하 0점), 수집가(+20점), 암살자(-15점)
+    - **🎭 히든 직업**: 도박사(1억 이상 2배 / **100만 미만 획득 시 점수 0점** - 단, 아케인 이상은 점수 획득 가능!), 수집가(+20점), 암살자(-15점)
     - **👑 10턴 주기 솔로 보스 레이드**: 승리 시 3턴간 행운 5배 폭증(🚀)!
-    - **🧬 아우라 시너지**: 수족관(`[아쿠아]`, `[느려도 괜찮아]`), **[해피 할로윈]**, **[웰컴 투더 헬]** 추가!
+    - **🧬 아우라 시너지**: 수족관(`[아쿠아]`, `[느려도 괜찮아]`), `[해피 할로윈]`, `[웰컴 투더 헬]`
     """)
     
     selected_job = st.radio(
@@ -281,7 +280,6 @@ with tab_battle:
     p_status_str = "🏆 최종 우승!" if player_info["status"] == "winner" else ("💀 탈락" if player_info["status"] == "eliminated" else f"🎮 생존 (포션: {player_info['potions']}개)")
     st.metric("내 상태", p_status_str)
 
-  # 플레이어 행운 상태 표시
   status_icons = []
   if player_info["buff_boss_turns"] > 0: status_icons.append(f"🚀 **보스 버프 (행운 5배)** ({player_info['buff_boss_turns']}턴 남음)")
   if player_info["use_potion_next"]: status_icons.append("🚀 **포션 대기중 (행운 2배)**")
@@ -340,7 +338,6 @@ with tab_battle:
     turn_results = []
     special_events = []
 
-    # 수족관(심화) 스킬 '느려도 괜찮아' 양옆 디버프 부여
     for idx, p in enumerate(alive):
       _, has_slow, _, _ = check_synergies(p["owned_auras"])
       if has_slow:
@@ -395,7 +392,6 @@ with tab_battle:
         p["best_denom"] = denom
         p["best_aura"] = aura
 
-      # [수집가] 최초 획득 보너스 +20점
       is_new_aura = aura not in p["owned_auras"]
       p["owned_auras"].add(aura)
       if p["job"] == "수집가" and is_new_aura:
@@ -466,11 +462,11 @@ with tab_battle:
 
     total_alive = len(current_alive_after_powers)
     for rank_idx, p in enumerate(turn_results):
-      # [도박사]: 100만 이하 획득 시 0점
-      if p["job"] == "도박사" and p["last_denom"] <= 1000000:
+      # [도박사]: 100만 미만(아케인 100만은 생존 가능!) 획득 시 0점 처리
+      if p["job"] == "도박사" and p["last_denom"] < 1000000:
         earned_score = 0
         if p["is_player"]:
-          special_events.append(f"🎰 **[도박사 리스크]** 100만 이하(`{p['last_aura']}`) 획득으로 이번 턴 점수 0점 하락(📉)!")
+          special_events.append(f"🎰 **[도박사 리스크]** 100만 미만(`{p['last_aura']}`) 획득으로 이번 턴 점수 0점 하락(📉)!")
       else:
         earned_score = max(1, 100 - int((rank_idx / max(1, total_alive - 1)) * 99)) if total_alive > 1 else 100
       
@@ -478,15 +474,12 @@ with tab_battle:
       p["last_turn_rank"] = rank_idx + 1
       p["last_earned"] = earned_score
 
-    # 점수 정렬 후 중간 계산 (순위표 기준)
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
 
-    # 🧬 [시너지: 해피 할로윈] (듀라한+망령+수확가) 적용
-    # 턴 순위표에서 본인 근처 10등 사이 중 1명의 절반 점수를 가져오고 뺏긴 사람은 점수를 반밖에 못받음(이번 턴 획득 점수 반토막)
+    # [시너지: 해피 할로윈] (듀라한+망령+수확가)
     for idx, p in enumerate(alive_sorted_by_score):
       _, _, has_halloween, _ = check_synergies(p["owned_auras"])
       if has_halloween:
-        # 근처 10등 사이 범위 (idx - 5 ~ idx + 5, 본인 제외)
         start_range = max(0, idx - 5)
         end_range = min(len(alive_sorted_by_score), idx + 6)
         candidates = [alive_sorted_by_score[i] for i in range(start_range, end_range) if i != idx]
@@ -495,12 +488,11 @@ with tab_battle:
           stolen_score = target["score"] // 2
           target["score"] -= stolen_score
           p["score"] += stolen_score
-          # 뺏긴 사람은 이번 턴 획득 점수 반토막
           target["last_earned"] = target.get("last_earned", 0) // 2
           if p["is_player"]:
-            special_events.append(f"🎃 **[해피 할로윈 발동!]** 근처 10위 내에 있는 {target['name']}님의 점수 절반({stolen_score}점)을 강탈했습니다!")
+            special_events.append(f"🎃 **[해피 할로윈!]** 근처 10위 내 {target['name']}님의 점수 절반({stolen_score}점) 강탈!")
 
-    # 암살자 스킬 처리
+    # [암살자] 점수 차감
     for overall_idx, p in enumerate(alive_sorted_by_score):
       if p["job"] == "암살자" and overall_idx + 1 < len(alive_sorted_by_score):
         target_below = alive_sorted_by_score[overall_idx + 1]
@@ -508,7 +500,6 @@ with tab_battle:
         if p["is_player"]:
           special_events.append(f"🗡️ **[암살자 스킬]** 바로 아래 순위({target_below['name']})의 점수 하락(📉 -15점)!")
 
-    # 최종 정렬 및 순위 부여
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
     for overall_idx, p in enumerate(alive_sorted_by_score, 1):
       if t == 1:
@@ -520,7 +511,6 @@ with tab_battle:
         p["curr_overall_rank"] = overall_idx
         p["rank_diff"] = p["prev_overall_rank"] - p["curr_overall_rank"]
 
-    # 솔로 보스 레이드 (10턴 주기)
     if t % 10 == 0:
       boss_winners = []
       for p in alive_sorted_by_score:
@@ -530,24 +520,23 @@ with tab_battle:
           p["buff_boss_turns"] = 3
           boss_winners.append(p["name"])
           if p["is_player"]:
-            special_events.append(f"👑 **[보스 레이드 승리!]** 토벌 성공으로 행운 대폭 증가(🚀 5배)!")
+            special_events.append(f"👑 **[보스 레이드 승리!]** 행운 대폭 증가(🚀 5배)!")
         else:
           if p["is_player"]:
-            special_events.append(f"🛡️ **[보스 레이드 패배]** 토벌 실패 (불이익 없음)")
+            special_events.append(f"🛡️ **[보스 레이드 패배]** 토벌 실패")
       if boss_winners:
         special_events.append(f"⚔️ [{t}턴 보스 토벌 성공자 {len(boss_winners)}명]: 행운 증가(🚀 3턴)")
 
-    # 기본 탈락자 1명 (+ 악몽의 하늘 효과 시 2명)
     elimination_count = 2 if any(p["last_aura"] == "악몽의 하늘" for p in turn_results) else 1
 
-    # 🧬 [시너지: 웰컴 투더 헬] (사도:베일 + 악몽의 하늘) 효과: 본인 근처 사이 10등에서 매턴 탈락자 1명씩 추가 발생!
+    # [시너지: 웰컴 투더 헬] (사도:베일 + 악몽의 하늘) 추가 탈락자 발생
     welcome_hell_extra_elim = 0
     for idx, p in enumerate(alive_sorted_by_score):
       _, _, _, has_welcome_hell = check_synergies(p["owned_auras"])
       if has_welcome_hell:
         welcome_hell_extra_elim += 1
         if p["is_player"]:
-          special_events.append(f"🎪 **[웰컴 투더 헬 발동!]** 지옥의 열기로 근처 10위 내 전장에서 추가 탈락자가 발생합니다!")
+          special_events.append(f"🎪 **[웰컴 투더 헬!]** 근처 10위 내 전장에서 추가 탈락자 발생!")
 
     total_elimination_count = elimination_count + welcome_hell_extra_elim
 
