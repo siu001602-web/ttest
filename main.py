@@ -113,9 +113,9 @@ AI_NAMES_POOL = [
 ]
 
 JOBS = {
-    "도박사": "🎰 1억 이상 아우라 확률 2배! (단, 100만 이하 아우라 뽑으면 해당 턴 점수 0점)",
-    "수집가": "📚 새로운 종류의 아우라를 처음 뽑을 때마다 보너스 점수 +50점 획득",
-    "암살자": "🗡️ 매 턴 순위표 바로 아래 사람 점수를 15점 깎아내림"
+    "도박사": "🎰 1억 이상 아우라 확률 2배! (단, 100만 이하 아우라 획득 시 점수 0점)",
+    "수집가": "📚 새로운 종류의 아우라 최초 획득 시 보너스 점수 +20점",
+    "암살자": "🗡️ 매 턴 순위표 바로 아래 사람 점수 -15점 차감"
 }
 
 def check_synergies(owned_set):
@@ -126,7 +126,6 @@ def check_synergies(owned_set):
 def roll_battle_luck(extra_luck_mult=1.0, is_gambler=False, has_aqua_synergy=False):
   current_weights = list(base_weights_battle)
   luck_mult = 1000000.0 * extra_luck_mult
-  # 행운 배율에 따라 최소 등장 커트라인 조정 (기본 백만배 기준 100만 이상 등장, 디버프 시 50만 이상 등장)
   min_denom = max(1, int(luck_mult))
   
   for idx, item in enumerate(items_battle):
@@ -135,12 +134,10 @@ def roll_battle_luck(extra_luck_mult=1.0, is_gambler=False, has_aqua_synergy=Fal
       current_weights[idx] = 0
     else:
       w = current_weights[idx] * luck_mult
-      # 도박사: 1억 이상 아우라 확률 2배
       if is_gambler and d >= 100000000:
-        w *= 2
-      # 수족관 시너지 [아쿠아]: 레비아탄 확률 2배
+        w *= 2.0
       if has_aqua_synergy and item == "༒ 𝕷𝕰𝕁𝕴𝕬𝕿𝕳𝕬𝕹 ༒":
-        w *= 2
+        w *= 2.0
       current_weights[idx] = max(1, int(w))
       
   return random.choices(items_battle, weights=current_weights, k=1)[0]
@@ -157,16 +154,11 @@ def roll_gacha_luck():
   return random.choices(items_gacha, weights=current_weights, k=1)[0]
 
 def get_boss_win_chance(best_denom):
-  if best_denom >= 300000000:
-    return 100
-  elif best_denom >= 100000000:
-    return 70
-  elif best_denom >= 50000000:
-    return 50
-  elif best_denom >= 10000000:
-    return 30
-  elif best_denom >= 1000000:
-    return 10
+  if best_denom >= 300000000: return 100
+  elif best_denom >= 100000000: return 70
+  elif best_denom >= 50000000: return 50
+  elif best_denom >= 10000000: return 30
+  elif best_denom >= 1000000: return 10
   return 5
 
 if "game_started" not in st.session_state:
@@ -250,15 +242,13 @@ tab_battle, tab_gacha = st.tabs(["⚔️ 100인 포인트 배틀로얄", "🎰 �
 with tab_battle:
   if not st.session_state.game_started:
     st.markdown("""
-    ### 📜 신규 시스템 안내
-    - **🎭 히든 직업 선택**: 시작 전 원하는 직업을 선택합니다. (AI들도 무작위 직업을 가집니다)
-      - **도박사**: 1억 이상 확률 2배 / **100만 이하 아우라 획득 시 점수 0점**
-      - **수집가**: 새로운 아우라 최초 획득 시 보너스 점수 **+50점**
-      - **암살자**: 매 턴 순위표 바로 아래 사람 점수 **-15점** 차감
-    - **👑 10턴 주기 솔로 보스 레이드**: 매 10턴마다 장착한 최고 아우라 등급에 따라 보스에 도전합니다! (100만↑ 10% ~ 3억↑ 100% / 승리 시 **3턴 동안 행운 5배 증가**)
-    - **🧬 아우라 시너지 (수족관)**:
-      - **아쿠아** (`아쿠아리움+샤킨+포세이돈`): 레비아탄 출현 확률 **2배 증가**
-      - **느려도 괜찮아** (`아쿠아리움+샤킨+포세이돈+레비아탄`): 매 턴 양옆 사람에게 **행운 2배 감소 디버프** 부여
+    ### 📜 개편된 시스템 안내
+    - **🎭 히든 직업 버프/너프 조정**:
+      - **도박사**: 1억 이상 확률 2배 ⬆️ / **100만 이하 획득 시 점수 0점** ❌
+      - **수집가**: 신규 아우라 최초 획득 시 보너스 점수 **+20점** 🎁
+      - **암살자**: 매 턴 순위표 바로 아래 사람 점수 **-15점** 차감 🗡️
+    - **👑 10턴 주기 솔로 보스 레이드**: 10턴마다 도전하여 승리 시 **3턴간 행운 5배 떡상(🚀)**!
+    - **🧬 아우라 시너지 (수족관)**: `[아쿠아]`(레비아탄 확률 2배) 및 `[느려도 괜찮아]`(양옆 행운 2배 감소 디버프 🌀)
     """)
     
     selected_job = st.radio(
@@ -279,7 +269,6 @@ with tab_battle:
   alive_participants = [p for p in participants if p["status"] == "playing"]
   is_game_over = len(alive_participants) <= 1
 
-  # 상단 상태 요약
   col_t1, col_t2, col_t3, col_t4 = st.columns(4)
   with col_t1:
     st.metric("진행 턴 수", f"{curr_turn} 턴", f"보스전까지 {10 - (curr_turn % 10)}턴" if curr_turn % 10 != 0 or curr_turn == 0 else "🔥 보스 턴!")
@@ -291,16 +280,15 @@ with tab_battle:
     p_status_str = "🏆 최종 우승!" if player_info["status"] == "winner" else ("💀 탈락 (관전 중)" if player_info["status"] == "eliminated" else f"🎮 생존 (포션: {player_info['potions']}개)")
     st.metric("내 상태", p_status_str)
 
-  # 플레이어 시너지 및 버프 현황 표시
-  p_aqua, p_slow = check_synergies(player_info["owned_auras"])
-  active_synergies = []
-  if p_aqua: active_synergies.append("🌊 **[아쿠아]** (레비아탄 확률 2배)")
-  if p_slow: active_synergies.append("🐌 **[느려도 괜찮아]** (매 턴 양옆 행운 2배 감소)")
-  if player_info["buff_boss_turns"] > 0: active_synergies.append(f"👑 **[보스 토벌 버프]** (행운 5배, {player_info['buff_boss_turns']}턴 남음)")
-  if player_info["debuff_slow_turns"] > 0: active_synergies.append("🌀 **[느려도 괜찮아 디버프]** (이번 턴 행운 2배 감소)")
-  
-  if active_synergies:
-    st.success("✨ 현재 활성화된 내 시너지/버프: " + " | ".join(active_synergies))
+  # 플레이어 행운 상태 표시 (증가 🚀 / 감소 🌀)
+  buff_tags = []
+  if player_info["buff_boss_turns"] > 0: buff_tags.append(f"🚀 행운 5배 폭증 (보스 버프, {player_info['buff_boss_turns']}턴 남음)")
+  if player_info["use_potion_next"]: buff_tags.append("🚀 행운 2배 증가 (포션 대기중)")
+  if player_info["buff_prism_turns"] > 0: buff_tags.append("🚀 행운 2배 증가 (프리즘)")
+  if player_info["debuff_slow_turns"] > 0: buff_tags.append("🌀 행운 2배 감소 (디버프 피격됨)")
+
+  if buff_tags:
+    st.info("⚡ **내 현재 행운 상태**: " + " | ".join(buff_tags))
 
   st.divider()
 
@@ -349,7 +337,7 @@ with tab_battle:
     turn_results = []
     special_events = []
 
-    # [사전 체크] 수족관(심화) 스킬 '느려도 괜찮아' 매 턴 양옆 디버프 부여
+    # 수족관(심화) 스킬 '느려도 괜찮아' 양옆 디버프 부여
     for idx, p in enumerate(alive):
       _, has_slow = check_synergies(p["owned_auras"])
       if has_slow:
@@ -357,9 +345,8 @@ with tab_battle:
           if 0 <= neighbor_idx < len(alive):
             alive[neighbor_idx]["debuff_slow_turns"] = 1
         if p["is_player"]:
-          special_events.append("🐌 **[느려도 괜찮아 발동]** 양옆 참가자의 이번 턴 행운이 2배 감소합니다!")
+          special_events.append("🐌 **[느려도 괜찮아 발동]** 양옆 참가자의 행운이 감소(🌀)되었습니다!")
 
-    # 각 생존자 턴 진행
     for idx, p in enumerate(alive):
       if p["locked_turns"] > 0:
         p["locked_turns"] -= 1
@@ -387,7 +374,7 @@ with tab_battle:
         p["potions"] -= 1
         p["use_potion_next"] = False
         extra_mult *= 2.0
-        special_events.append("🧪 **[행운 포션 사용!]** 플레이어님의 행운이 2배 증폭됩니다!")
+        special_events.append("🧪 **[행운 포션 사용!]** 플레이어님의 행운이 증가(🚀)했습니다!")
       elif not p["is_player"] and p["potions"] > 0 and random.random() < 0.3:
         p["potions"] -= 1
         extra_mult *= 2.0
@@ -401,18 +388,17 @@ with tab_battle:
       p["last_denom"] = denom
       p["history"].append({"turn": t, "aura": aura, "denom": denom})
       
-      # 최고 장착 아우라 갱신 (보스 레이드용)
       if denom > p["best_denom"]:
         p["best_denom"] = denom
         p["best_aura"] = aura
 
-      # 직업 [수집가] 효과: 새로운 아우라 최초 획득 시 보너스 +50점
+      # [수집가] 신규 아우라 최초 획득 시 보너스 +20점
       is_new_aura = aura not in p["owned_auras"]
       p["owned_auras"].add(aura)
       if p["job"] == "수집가" and is_new_aura:
-        p["score"] += 50
+        p["score"] += 20
         if p["is_player"]:
-          special_events.append(f"📚 **[수집가 보너스]** 신규 아우라 `{aura}` 발견! (+50점)")
+          special_events.append(f"📚 **[수집가 보너스]** 신규 아우라 `{aura}` 발견으로 점수 상승(📈 +20점)!")
 
       if denom >= 100000000:
         if p["best_100m_aura"] is None or denominators_battle[p["best_100m_aura"]] < denom:
@@ -420,7 +406,6 @@ with tab_battle:
 
       turn_results.append(p)
 
-      # 1억 이상 아우라 고유 특수 능력 발동
       if denom >= 100000000:
         if aura == "𝓣𝓱𝓮 𝓞𝓻𝓲𝓰𝓲𝓷 𝓗𝓪𝓷𝓭":
           p["buff_origin_turns"] = 3
@@ -460,7 +445,7 @@ with tab_battle:
             special_events.append(f"🗡️ **[수확가]** {target['name']}님의 점수 절반 흡수!")
         elif aura == "✧ 𝓗𝔂𝓹𝓮𝓻 𝓟𝓻𝓲𝓼𝓶 ✧":
           p["buff_prism_turns"] = 2
-          special_events.append(f"💎 **[프리즘]** 행운 2배 증폭!")
+          special_events.append(f"💎 **[프리즘]** 행운 증가(🚀)!")
         elif aura == "𝓢𝓹𝓮𝓬𝓽𝓻𝓪𝓕𝓵𝓸𝔀 𖤐":
           if idx > 0:
             above_person = alive[idx - 1]
@@ -478,11 +463,11 @@ with tab_battle:
 
     total_alive = len(current_alive_after_powers)
     for rank_idx, p in enumerate(turn_results):
-      # 직업 [도박사]: 100만 이하 아우라 뽑으면 해당 턴 점수 0점 처리
+      # [도박사]: 100만 이하 아우라 획득 시 0점 처리
       if p["job"] == "도박사" and p["last_denom"] <= 1000000:
         earned_score = 0
         if p["is_player"]:
-          special_events.append(f"🎰 **[도박사 패널티]** 100만 이하(`{p['last_aura']}`) 획득으로 이번 턴 점수 **0점**!")
+          special_events.append(f"🎰 **[도박사 리스크]** 100만 이하(`{p['last_aura']}`) 획득으로 이번 턴 점수 0점 하락(📉)!")
       else:
         earned_score = max(1, 100 - int((rank_idx / max(1, total_alive - 1)) * 99)) if total_alive > 1 else 100
       
@@ -490,17 +475,16 @@ with tab_battle:
       p["last_turn_rank"] = rank_idx + 1
       p["last_earned"] = earned_score
 
-    # 전체 누적 점수 기준 정렬 및 직업 [암살자] 효과 처리
+    # [암살자]: 아래 순위 사람 점수 15점 깎기
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
     for overall_idx, p in enumerate(alive_sorted_by_score):
       if p["job"] == "암살자" and overall_idx + 1 < len(alive_sorted_by_score):
         target_below = alive_sorted_by_score[overall_idx + 1]
         target_below["score"] = max(0, target_below["score"] - 15)
         if p["is_player"]:
-          special_events.append(f"🗡️ **[암살자 스킬]** 바로 아래 순위({target_below['name']})의 점수를 15점 깎았습니다!")
+          special_events.append(f"🗡️ **[암살자 스킬]** 바로 아래 순위({target_below['name']})의 점수 하락(📉 -15점)!")
 
-    # 암살자 점수 차감 반영 후 최종 순위 확정
-    alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
+    alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"], reverse=True) if False else (x["score"], x["last_denom"]), reverse=True)
     for overall_idx, p in enumerate(alive_sorted_by_score, 1):
       if t == 1:
         p["prev_overall_rank"] = overall_idx
@@ -511,7 +495,7 @@ with tab_battle:
         p["curr_overall_rank"] = overall_idx
         p["rank_diff"] = p["prev_overall_rank"] - p["curr_overall_rank"]
 
-    # [솔로 보스 레이드] 10턴마다 발생 (10, 20, 30...)
+    # 솔로 보스 레이드 (10턴 주기)
     if t % 10 == 0:
       boss_winners = []
       for p in alive_sorted_by_score:
@@ -521,14 +505,13 @@ with tab_battle:
           p["buff_boss_turns"] = 3
           boss_winners.append(p["name"])
           if p["is_player"]:
-            special_events.append(f"👑 **[솔로 보스 레이드 승리!]** 장착 아우라(`{p['best_aura']}`, 확률 {win_chance}%)로 보스를 처치하여 **3턴간 행운 5배 증가**!")
+            special_events.append(f"👑 **[보스 레이드 승리!]** 보스 토벌 성공으로 행운 대폭 증가(🚀 5배)!")
         else:
           if p["is_player"]:
-            special_events.append(f"🛡️ **[솔로 보스 레이드 패배]** 확률({win_chance}%)을 뚫지 못했지만 불이익 없이 무사히 귀환했습니다.")
+            special_events.append(f"🛡️ **[보스 레이드 패배]** 토벌 실패 (불이익 없음)")
       if boss_winners:
-        special_events.append(f"⚔️ [{t}턴 보스 토벌 성공자({len(boss_winners)}명)]: 3턴 행운 5배 획득!")
+        special_events.append(f"⚔️ [{t}턴 보스 토벌 성공자 {len(boss_winners)}명]: 행운 증가(🚀 3턴)")
 
-    # 최하위 탈락자 선정
     elimination_count = 2 if any(p["last_aura"] == "악몽의 하늘" for p in turn_results) else 1
     eliminated_this_turn = []
     for _ in range(elimination_count):
@@ -539,7 +522,6 @@ with tab_battle:
         eliminated_this_turn.append(low_p)
         alive_sorted_by_score.remove(low_p)
 
-    # 생존 보상 포션 지급
     for p in participants:
       if p["status"] == "playing":
         p["potions"] += 1
@@ -568,24 +550,23 @@ with tab_battle:
       })
 
     elim_names = ", ".join([e["name"] for e in eliminated_this_turn]) if eliminated_this_turn else "없음"
-    summary_text = f"📢 [{t}턴 결과] 1위: **{turn_results[0]['name']}** ({turn_results[0]['last_aura']}) | 최하위 탈락: **{elim_names}** (🧪 포션 +1)"
+    summary_text = f"📢 [{t}턴 결과] 1위: **{turn_results[0]['name']}** ({turn_results[0]['last_aura']}) | 탈락: **{elim_names}** (🧪 포션 +1)"
     if special_events:
       summary_text += " | ✨ " + " / ".join(special_events)
 
     st.session_state.turn_logs = new_logs
     st.session_state.turn_summary = summary_text
 
-  # 상단 포션 및 보스전 안내 패널
   with st.container(border=True):
     col_p_info1, col_p_info2, col_p_info3, col_p_info4 = st.columns([1.8, 1.8, 1.8, 1])
     with col_p_info1:
       st.markdown(f"🧪 **보유 행운 포션**: `{player_info['potions']}개`")
     with col_p_info2:
-      status_msg = "🟢 [다음 턴 포션 대기중!]" if player_info["use_potion_next"] else "⚪ [사용 안 함]"
+      status_msg = "🟢 [포션 사용 대기 🚀]" if player_info["use_potion_next"] else "⚪ [미사용]"
       st.markdown(f"포션 상태: {status_msg}")
     with col_p_info3:
       boss_chance = get_boss_win_chance(player_info["best_denom"])
-      st.markdown(f"👑 **보스 승리 확률**: `{boss_chance}%` (최고: `{player_info['best_aura']}`)")
+      st.markdown(f"👑 **보스 승리 확률**: `{boss_chance}%`")
     with col_p_info4:
       if player_info["status"] == "playing" and player_info["potions"] > 0:
         btn_label = "포션 취소" if player_info["use_potion_next"] else "🧪 포션 마시기"
@@ -595,8 +576,8 @@ with tab_battle:
 
   if not is_game_over:
     next_t = curr_turn + 1
-    boss_tag = " [👑 10턴 솔로 보스 레이드!]" if next_t % 10 == 0 else ""
-    btn_label = f"🎲 {next_t}턴 진행{boss_tag}" if player_info["status"] == "playing" else f"👁️ {next_t}턴 관전 진행{boss_tag}"
+    boss_tag = " [👑 보스 레이드!]" if next_t % 10 == 0 else ""
+    btn_label = f"🎲 {next_t}턴 진행{boss_tag}" if player_info["status"] == "playing" else f"👁️ {next_t}턴 관전{boss_tag}"
     if st.button(btn_label, type="primary", use_container_width=True):
       process_point_turn()
       st.rerun()
@@ -604,10 +585,10 @@ with tab_battle:
     winner = next((p for p in participants if p["status"] in ["winner", "playing"]), None)
     if winner and winner["is_player"]:
       st.balloons()
-      st.success(f"🏆 축하합니다! 직업 [{winner['job']}]의 힘으로 최종 우승하셨습니다!")
+      st.success("🏆 축하합니다! 최종 우승하셨습니다!")
     elif winner:
-      st.success(f"👑 최종 우승자는 **[{winner['name']}]** (직업: {winner['job']})입니다!")
-    if st.button("🔄 새 게임 시작하기 (직업 재선택)", type="primary", use_container_width=True):
+      st.success(f"👑 최종 우승자는 **[{winner['name']}]**입니다!")
+    if st.button("🔄 새 게임 시작하기", type="primary", use_container_width=True):
       st.session_state.game_started = False
       st.rerun()
 
@@ -619,7 +600,7 @@ with tab_battle:
       winner = next((p for p in participants if p["status"] in ["winner", "playing"]), None)
       st.subheader(f"🏆 최종 우승자 [{winner['name']}] 기록")
       with st.container(height=600, border=True):
-        st.markdown(f"**직업:** `{winner['job']}` | **누적 점수:** `{winner['score']}점` ({len(winner['history'])}턴 생존)")
+        st.markdown(f"**직업:** `{winner['job']}` | **누적 점수:** `{winner['score']}점`")
         st.divider()
         best_win_aura = max(winner["history"], key=lambda x: x["denom"])
         st.success(f"🌟 **최고 기록:** {icons.get(best_win_aura['aura'], '✨')} **{best_win_aura['aura']}** (`1 in {best_win_aura['denom']:,}`)")
@@ -671,7 +652,7 @@ with tab_battle:
 
 with tab_gacha:
   st.subheader("🎰 마스터 핸드 전용 백만배 행운 뽑기 창")
-  st.markdown("백만배 행운이 적용된 상태로 **아케인**부터 최고 등급인 **마스터 핸드**까지 직접 뽑고, 각 등급별 최초 획득 횟수와 가장 늦게 뜬 아우라를 확인해보세요!")
+  st.markdown("백만배 행운이 적용된 상태로 **아케인**부터 최고 등급인 **마스터 핸드**까지 직접 뽑고, 각 등급별 최초 획득 횟수를 확인해보세요!")
 
   def execute_gacha(count):
     for _ in range(count):
@@ -709,7 +690,7 @@ with tab_gacha:
 
   with col_gacha_left:
     st.markdown(f"### 📊 누적 뽑기 횟수: `{st.session_state.gacha_total_tries}회`")
-    st.markdown("#### 🏆 등급별 최초 획득 기록 (몇 번째 시도에 떴나?)")
+    st.markdown("#### 🏆 등급별 최초 획득 기록")
     
     with st.container(height=450, border=True):
       acquired_records = {k: v for k, v in st.session_state.gacha_first_records.items() if v is not None}
@@ -730,7 +711,7 @@ with tab_gacha:
     st.markdown("#### 📜 최근 뽑기 결과 (최신 10개)")
     with st.container(height=450, border=True):
       if not st.session_state.gacha_latest_history:
-        st.caption("아직 뽑은 기록이 없습니다. 버튼을 눌러 뽑기를 시작해보세요!")
+        st.caption("아직 뽑은 기록이 없습니다.")
       else:
         for hist in st.session_state.gacha_latest_history:
           icon = icons.get(hist["aura"], "✨")
