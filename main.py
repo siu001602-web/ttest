@@ -242,13 +242,10 @@ tab_battle, tab_gacha = st.tabs(["⚔️ 100인 포인트 배틀로얄", "🎰 �
 with tab_battle:
   if not st.session_state.game_started:
     st.markdown("""
-    ### 📜 개편된 시스템 안내
-    - **🎭 히든 직업 버프/너프 조정**:
-      - **도박사**: 1억 이상 확률 2배 🚀 / **100만 이하 획득 시 점수 0점** 📉
-      - **수집가**: 신규 아우라 최초 획득 시 보너스 점수 **+20점** 📈
-      - **암살자**: 매 턴 순위표 바로 아래 사람 점수 **-15점** 차감 📉
-    - **👑 10턴 주기 솔로 보스 레이드**: 10턴마다 도전하여 승리 시 **3턴간 행운 5배 떡상(🚀)**!
-    - **🧬 아우라 시너지 (수족관)**: `[아쿠아]`(레비아탄 확률 2배) 및 `[느려도 괜찮아]`(양옆 행운 2배 감소 디버프 🌀)
+    ### 📜 시스템 안내
+    - **🎭 히든 직업**: 도박사(1억 이상 2배 / 100만 이하 0점), 수집가(+20점), 암살자(-15점)
+    - **👑 10턴 주기 솔로 보스 레이드**: 승리 시 3턴간 행운 5배 폭증(🚀)!
+    - **🧬 아우라 시너지 (수족관)**: `[아쿠아]`(레비아탄 확률 2배) 및 `[느려도 괜찮아]`(양옆 디버프 🌀)
     """)
     
     selected_job = st.radio(
@@ -277,18 +274,20 @@ with tab_battle:
   with col_t3:
     st.metric("내 직업 / 최고 아우라", f"{player_info['job']}", f"{player_info['best_aura']}")
   with col_t4:
-    p_status_str = "🏆 최종 우승!" if player_info["status"] == "winner" else ("💀 탈락 (관전 중)" if player_info["status"] == "eliminated" else f"🎮 생존 (포션: {player_info['potions']}개)")
+    p_status_str = "🏆 최종 우승!" if player_info["status"] == "winner" else ("💀 탈락" if player_info["status"] == "eliminated" else f"🎮 생존 (포션: {player_info['potions']}개)")
     st.metric("내 상태", p_status_str)
 
-  # 플레이어 행운 상태 표시 (증가 🚀 / 감소 🌀)
-  buff_tags = []
-  if player_info["buff_boss_turns"] > 0: buff_tags.append(f"🚀 행운 5배 폭증 (보스 버프, {player_info['buff_boss_turns']}턴 남음)")
-  if player_info["use_potion_next"]: buff_tags.append("🚀 행운 2배 증가 (포션 대기중)")
-  if player_info["buff_prism_turns"] > 0: buff_tags.append("🚀 행운 2배 증가 (프리즘)")
-  if player_info["debuff_slow_turns"] > 0: buff_tags.append("🌀 행운 2배 감소 (디버프 피격됨)")
+  # 🌟 항상 눈에 띄도록 상단에 플레이어의 현재 버프/디버프 상태 표시 박스 고정
+  status_icons = []
+  if player_info["buff_boss_turns"] > 0: status_icons.append(f"🚀 **보스 버프 (행운 5배)** ({player_info['buff_boss_turns']}턴 남음)")
+  if player_info["use_potion_next"]: status_icons.append("🚀 **포션 대기중 (행운 2배)**")
+  if player_info["buff_prism_turns"] > 0: status_icons.append(f"🚀 **프리즘 버프 (행운 2배)** ({player_info['buff_prism_turns']}턴 남음)")
+  if player_info["debuff_slow_turns"] > 0: status_icons.append("🌀 **디버프 피격 (행운 2배 감소)**")
 
-  if buff_tags:
-    st.info("⚡ **내 현재 행운 상태**: " + " | ".join(buff_tags))
+  if status_icons:
+    st.warning("⚡ [내 행운 상태 변화]: " + " | ".join(status_icons))
+  else:
+    st.info("⚡ [내 행운 상태]: ⚪ 일반 상태 (버프/디버프 없음)")
 
   st.divider()
 
@@ -392,13 +391,13 @@ with tab_battle:
         p["best_denom"] = denom
         p["best_aura"] = aura
 
-      # [수집가] 신규 아우라 최초 획득 시 보너스 +20점
+      # [수집가] 최초 획득 보너스 +20점
       is_new_aura = aura not in p["owned_auras"]
       p["owned_auras"].add(aura)
       if p["job"] == "수집가" and is_new_aura:
         p["score"] += 20
         if p["is_player"]:
-          special_events.append(f"📚 **[수집가 보너스]** 신규 아우라 `{aura}` 발견으로 점수 상승(📈 +20점)!")
+          special_events.append(f"📚 **[수집가 보너스]** 신규 아우라 `{aura}` 발견 (📈 +20점)!")
 
       if denom >= 100000000:
         if p["best_100m_aura"] is None or denominators_battle[p["best_100m_aura"]] < denom:
@@ -463,7 +462,7 @@ with tab_battle:
 
     total_alive = len(current_alive_after_powers)
     for rank_idx, p in enumerate(turn_results):
-      # [도박사]: 100만 이하 아우라 획득 시 0점 처리
+      # [도박사]: 100만 이하 획득 시 0점
       if p["job"] == "도박사" and p["last_denom"] <= 1000000:
         earned_score = 0
         if p["is_player"]:
@@ -475,7 +474,7 @@ with tab_battle:
       p["last_turn_rank"] = rank_idx + 1
       p["last_earned"] = earned_score
 
-    # [암살자]: 아래 순위 사람 점수 15점 깎기
+    # [암살자]: 아래 순위 사람 점수 15점 차감
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
     for overall_idx, p in enumerate(alive_sorted_by_score):
       if p["job"] == "암살자" and overall_idx + 1 < len(alive_sorted_by_score):
@@ -484,7 +483,6 @@ with tab_battle:
         if p["is_player"]:
           special_events.append(f"🗡️ **[암살자 스킬]** 바로 아래 순위({target_below['name']})의 점수 하락(📉 -15점)!")
 
-    # 수정 완료: 문법 에러가 나던 부분을 정상 정렬 코드로 교체
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
     for overall_idx, p in enumerate(alive_sorted_by_score, 1):
       if t == 1:
@@ -506,7 +504,7 @@ with tab_battle:
           p["buff_boss_turns"] = 3
           boss_winners.append(p["name"])
           if p["is_player"]:
-            special_events.append(f"👑 **[보스 레이드 승리!]** 보스 토벌 성공으로 행운 대폭 증가(🚀 5배)!")
+            special_events.append(f"👑 **[보스 레이드 승리!]** 토벌 성공으로 행운 대폭 증가(🚀 5배)!")
         else:
           if p["is_player"]:
             special_events.append(f"🛡️ **[보스 레이드 패배]** 토벌 실패 (불이익 없음)")
@@ -547,7 +545,10 @@ with tab_battle:
           "total_score": p["score"],
           "rank_diff": p["rank_diff"],
           "eliminated_now": is_elim,
-          "best_100m_aura": p["best_100m_aura"]
+          "best_100m_aura": p["best_100m_aura"],
+          "buff_boss": p["buff_boss_turns"] > 0,
+          "buff_prism": p["buff_prism_turns"] > 0,
+          "debuff_slow": p["debuff_slow_turns"] > 0
       })
 
     elim_names = ", ".join([e["name"] for e in eliminated_this_turn]) if eliminated_this_turn else "없음"
@@ -623,9 +624,16 @@ with tab_battle:
               name_str = f"<b>{log_name_text}</b>"
 
             job_tag = f"<span style='color:#888; font-size:12px;'>[{log['job']}]</span>"
+            
+            # 🌟 순위표 목록에서도 버프/디버프 상태(🚀, 🌀) 아이콘 표시
+            status_badge = ""
+            if log.get("buff_boss") or log.get("buff_prism"): status_badge += " <span style='color:#ff4b4b;'>🚀증가</span>"
+            if log.get("debuff_slow"): status_badge += " <span style='color:#1c83e1;'>🌀감소</span>"
+
             aura_str = f"{icons.get(log['aura'], '✨')} {log['aura']} (1 in {log['denom']:,})" if log['denom'] > 0 else f"{log['aura']}"
             elim_badge = " <span style='color:#ff4b4b; font-weight:bold;'>[💀 탈락]</span>" if log["eliminated_now"] else ""
-            st.markdown(f"<div style='padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,0.2);'><b>{log['turn_rank']}위</b> | {name_str} {job_tag} {diff_html} : {aura_str} | <code>+{log['earned']}점</code> (누적 <b>{log['total_score']}점</b>){elim_badge}</div>", unsafe_allow_html=True)
+            
+            st.markdown(f"<div style='padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,0.2);'><b>{log['turn_rank']}위</b> | {name_str} {job_tag}{status_badge} {diff_html} : {aura_str} | <code>+{log['earned']}점</code> (누적 <b>{log['total_score']}점</b>){elim_badge}</div>", unsafe_allow_html=True)
 
   with col_right:
     st.subheader("👥 참가자 현황판")
@@ -646,7 +654,12 @@ with tab_battle:
               p_aq, p_sl = check_synergies(p["owned_auras"])
               syn_tag = " 🐌" if p_sl else (" 🌊" if p_aq else "")
               
-              st.markdown(f"<div style='font-size:15px;'><b>{rank_badge}</b>{styled_name}{syn_tag} {diff_html}</div>", unsafe_allow_html=True)
+              # 🌟 현황판 카드에도 버프(🚀) / 디버프(🌀) 상태 표시
+              p_badge = ""
+              if p["buff_boss_turns"] > 0 or p["buff_prism_turns"] > 0: p_badge += " 🚀"
+              if p["debuff_slow_turns"] > 0: p_badge += " 🌀"
+              
+              st.markdown(f"<div style='font-size:15px;'><b>{rank_badge}</b>{styled_name}{syn_tag}{p_badge} {diff_html}</div>", unsafe_allow_html=True)
               st.caption(f"{status_txt} | [{p['job']}] | 누적: **{p['score']}점**")
               st.markdown(f"최근: {icons.get(p['last_aura'], '✨')} `{p['last_aura']}`" if p["last_denom"] > 0 else f"최근: {p['last_aura']}")
 
