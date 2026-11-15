@@ -113,7 +113,7 @@ AI_NAMES_POOL = [
 ]
 
 JOBS = {
-    "도박사": "🎰 1억 이상 아우라 확률 2배! (단, 100만 이하 아우라 획득 시 점수 0점)",
+    "도박사": "🎰 1억 이상 아우라 확률 2배! (단, 100만 이하 획득 시 점수 0점)",
     "수집가": "📚 새로운 종류의 아우라 최초 획득 시 보너스 점수 +20점",
     "암살자": "🗡️ 매 턴 순위표 바로 아래 사람 점수 -15점 차감"
 }
@@ -244,9 +244,9 @@ with tab_battle:
     st.markdown("""
     ### 📜 개편된 시스템 안내
     - **🎭 히든 직업 버프/너프 조정**:
-      - **도박사**: 1억 이상 확률 2배 ⬆️ / **100만 이하 획득 시 점수 0점** ❌
-      - **수집가**: 신규 아우라 최초 획득 시 보너스 점수 **+20점** 🎁
-      - **암살자**: 매 턴 순위표 바로 아래 사람 점수 **-15점** 차감 🗡️
+      - **도박사**: 1억 이상 확률 2배 🚀 / **100만 이하 획득 시 점수 0점** 📉
+      - **수집가**: 신규 아우라 최초 획득 시 보너스 점수 **+20점** 📈
+      - **암살자**: 매 턴 순위표 바로 아래 사람 점수 **-15점** 차감 📉
     - **👑 10턴 주기 솔로 보스 레이드**: 10턴마다 도전하여 승리 시 **3턴간 행운 5배 떡상(🚀)**!
     - **🧬 아우라 시너지 (수족관)**: `[아쿠아]`(레비아탄 확률 2배) 및 `[느려도 괜찮아]`(양옆 행운 2배 감소 디버프 🌀)
     """)
@@ -484,7 +484,8 @@ with tab_battle:
         if p["is_player"]:
           special_events.append(f"🗡️ **[암살자 스킬]** 바로 아래 순위({target_below['name']})의 점수 하락(📉 -15점)!")
 
-    alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"], reverse=True) if False else (x["score"], x["last_denom"]), reverse=True)
+    # 수정 완료: 문법 에러가 나던 부분을 정상 정렬 코드로 교체
+    alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
     for overall_idx, p in enumerate(alive_sorted_by_score, 1):
       if t == 1:
         p["prev_overall_rank"] = overall_idx
