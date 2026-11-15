@@ -124,7 +124,8 @@ def check_synergies(owned_set):
   has_slow_ok = {"아쿠아리움", "샤킨", "포세이돈", "༒ 𝕷𝕰𝕁𝕴𝕬𝕿𝕳𝕬𝕹 ༒"}.issubset(owned_set)
   has_halloween = {"듀라한", "망령", "수확가"}.issubset(owned_set)
   has_welcome_hell = {"사도:베일", "악몽의 하늘"}.issubset(owned_set)
-  return has_aqua, has_slow_ok, has_halloween, has_welcome_hell
+  has_music = {"자장가", "𝓢𝔂𝓶𝓹𝓱𝓸𝓷𝔂♤"}.issubset(owned_set)
+  return has_aqua, has_slow_ok, has_halloween, has_welcome_hell, has_music
 
 def roll_battle_luck(extra_luck_mult=1.0, is_gambler=False, has_aqua_synergy=False):
   current_weights = list(base_weights_battle)
@@ -203,6 +204,7 @@ def init_game(selected_job):
       "buff_origin_turns": 0,
       "buff_prism_turns": 0,
       "buff_boss_turns": 0,
+      "buff_music_turns": 0,
       "debuff_slow_turns": 0,
       "locked_turns": 0,
   }]
@@ -229,6 +231,7 @@ def init_game(selected_job):
         "buff_origin_turns": 0,
         "buff_prism_turns": 0,
         "buff_boss_turns": 0,
+        "buff_music_turns": 0,
         "debuff_slow_turns": 0,
         "locked_turns": 0,
     })
@@ -240,7 +243,6 @@ def init_game(selected_job):
 
 st.title("⚔️ 아우라 종합 시뮬레이터")
 
-# 탭 메뉴 구성 (명예의 전당 탭 추가)
 tab_battle, tab_gacha, tab_synergy, tab_hof = st.tabs([
     "⚔️ 100인 포인트 배틀로얄", 
     "🎰 마스터 핸드 뽑기 창", 
@@ -254,7 +256,7 @@ with tab_battle:
     ### 📜 시스템 안내
     - **🎭 히든 직업**: 도박사(1억 이상 2배 / **100만 미만 획득 시 점수 0점** - 아케인은 생존), 수집가(+20점), 암살자(-15점)
     - **👑 10턴 주기 솔로 보스 레이드**: 승리 시 3턴간 행운 5배 폭증(🚀)!
-    - **🧬 아우라 시너지**: 수족관(`[아쿠아]`, `[느려도 괜찮아]`), `[해피 할로윈]`, `[웰컴 투더 헬]`
+    - **🧬 아우라 시너지**: 수족관(`[아쿠아]`, `[느려도 괜찮아]`), `[해피 할로윈]`, `[웰컴 투더 헬]`, `[음악에 몸을 맡겨봐]`
     """)
     
     selected_job = st.radio(
@@ -287,6 +289,7 @@ with tab_battle:
     st.metric("내 상태", p_status_str)
 
   status_icons = []
+  if player_info.get("buff_music_turns", 0) > 0: status_icons.append(f"🎼 **음악 시너지 버프 (행운 50배!)** ({player_info['buff_music_turns']}턴 남음)")
   if player_info["buff_boss_turns"] > 0: status_icons.append(f"🚀 **보스 버프 (행운 5배)** ({player_info['buff_boss_turns']}턴 남음)")
   if player_info["use_potion_next"]: status_icons.append("🚀 **포션 대기중 (행운 2배)**")
   if player_info["buff_prism_turns"] > 0: status_icons.append(f"🚀 **프리즘 버프 (행운 2배)** ({player_info['buff_prism_turns']}턴 남음)")
@@ -345,7 +348,7 @@ with tab_battle:
     special_events = []
 
     for idx, p in enumerate(alive):
-      _, has_slow, _, _ = check_synergies(p["owned_auras"])
+      _, has_slow, _, _, _ = check_synergies(p["owned_auras"])
       if has_slow:
         for neighbor_idx in [idx - 1, idx + 1]:
           if 0 <= neighbor_idx < len(alive):
@@ -364,6 +367,10 @@ with tab_battle:
         continue
 
       extra_mult = 1.0
+      if p.get("buff_music_turns", 0) > 0:
+        extra_mult *= 50.0
+        p["buff_music_turns"] -= 1
+
       if p["buff_prism_turns"] > 0:
         extra_mult *= 2.0
         p["buff_prism_turns"] -= 1
@@ -385,7 +392,7 @@ with tab_battle:
         p["potions"] -= 1
         extra_mult *= 2.0
 
-      has_aqua, _, _, _ = check_synergies(p["owned_auras"])
+      has_aqua, _, _, _, _ = check_synergies(p["owned_auras"])
       is_gambler = (p["job"] == "도박사")
 
       aura = roll_battle_luck(extra_mult, is_gambler=is_gambler, has_aqua_synergy=has_aqua)
@@ -422,10 +429,16 @@ with tab_battle:
             victim["status"] = "eliminated"
           special_events.append(f"🖐️ **[태초의 권능!]** 오리진 핸드 발동! AI **{cut_count}명** 즉시 소멸!")
         elif aura == "𝓓𝓻𝓮𝓪𝓶𝓬𝓪𝓽𝓬𝓱𝓮𝓻":
+          total_absorbed = 0
           for neighbor_idx in [idx - 1, idx + 1]:
             if 0 <= neighbor_idx < len(alive):
-              alive[neighbor_idx]["locked_turns"] = 2
-          special_events.append(f"🕸️ **[드림캐쳐]** 주변 인물 2턴 잠금!")
+              target_n = alive[neighbor_idx]
+              target_n["locked_turns"] = 2
+              absorbed = target_n["score"] // 5
+              target_n["score"] -= absorbed
+              p["score"] += absorbed
+              total_absorbed += absorbed
+          special_events.append(f"🕸️ **[드림캐쳐]** 주변 인물 2턴 잠금 및 총 점수 1/5({total_absorbed}점) 흡수!")
         elif aura == "𝓘𝓬𝓮𝓐𝓰𝓮":
           for neighbor_idx in [idx - 1, idx + 1]:
             if 0 <= neighbor_idx < len(alive):
@@ -483,7 +496,7 @@ with tab_battle:
 
     # [시너지: 해피 할로윈] (듀라한+망령+수확가)
     for idx, p in enumerate(alive_sorted_by_score):
-      _, _, has_halloween, _ = check_synergies(p["owned_auras"])
+      _, _, has_halloween, _, _ = check_synergies(p["owned_auras"])
       if has_halloween:
         start_range = max(0, idx - 5)
         end_range = min(len(alive_sorted_by_score), idx + 6)
@@ -537,7 +550,7 @@ with tab_battle:
     # [시너지: 웰컴 투더 헬] (사도:베일 + 악몽의 하늘) 추가 탈락자 발생
     welcome_hell_extra_elim = 0
     for idx, p in enumerate(alive_sorted_by_score):
-      _, _, _, has_welcome_hell = check_synergies(p["owned_auras"])
+      _, _, _, has_welcome_hell, _ = check_synergies(p["owned_auras"])
       if has_welcome_hell:
         welcome_hell_extra_elim += 1
         if p["is_player"]:
@@ -553,6 +566,21 @@ with tab_battle:
         low_p["status"] = "eliminated"
         eliminated_this_turn.append(low_p)
         alive_sorted_by_score.remove(low_p)
+
+    # [시너지: 음악에 몸을 맡겨봐] (자장가 + 심포니)
+    # 참가자 현황판(3열 그리드 기준)에서 본인과 같은 줄에 있는 사람이 1억 이상 아우라를 뽑으면 다음 턴 행운 50배 증가
+    grid_sorted = sorted(participants, key=lambda x: (0 if x["status"] in ["playing", "winner"] else 1, -x["score"]))
+    for g_idx, p in enumerate(grid_sorted):
+      if p["status"] == "playing":
+        _, _, _, _, has_music = check_synergies(p["owned_auras"])
+        if has_music:
+          row_start = (g_idx // 3) * 3
+          row_members = grid_sorted[row_start : row_start + 3]
+          # 같은 줄에 있는 다른 사람이 이번 턴에 1억 이상 아우라를 뽑았는지 체크
+          if any(m != p and m["last_denom"] >= 100000000 for m in row_members):
+            p["buff_music_turns"] = 1
+            if p["is_player"]:
+              special_events.append("🎼 **[음악에 몸을 맡겨봐!]** 같은 줄 참가자가 1억 이상 아우라를 뽑아 다음 턴 행운 50배 폭증(🚀)!")
 
     for p in participants:
       if p["status"] == "playing":
@@ -581,6 +609,7 @@ with tab_battle:
           "best_100m_aura": p["best_100m_aura"],
           "buff_boss": p["buff_boss_turns"] > 0,
           "buff_prism": p["buff_prism_turns"] > 0,
+          "buff_music": p.get("buff_music_turns", 0) > 0,
           "debuff_slow": p["debuff_slow_turns"] > 0
       })
 
@@ -659,7 +688,7 @@ with tab_battle:
             job_tag = f"<span style='color:#888; font-size:12px;'>[{log['job']}]</span>"
             
             status_badge = ""
-            if log.get("buff_boss") or log.get("buff_prism"): status_badge += " <span style='color:#ff4b4b;'>🚀증가</span>"
+            if log.get("buff_boss") or log.get("buff_prism") or log.get("buff_music"): status_badge += " <span style='color:#ff4b4b;'>🚀증가</span>"
             if log.get("debuff_slow"): status_badge += " <span style='color:#1c83e1;'>🌀감소</span>"
 
             aura_str = f"{icons.get(log['aura'], '✨')} {log['aura']} (1 in {log['denom']:,})" if log['denom'] > 0 else f"{log['aura']}"
@@ -683,20 +712,45 @@ with tab_battle:
               status_txt = "🏆 우승" if p["status"] == "winner" else ("🟢 생존" if p["status"] == "playing" else "💀 탈락")
               styled_name = get_styled_name(p)
               
-              p_aq, p_sl, p_hw, p_wh = check_synergies(p["owned_auras"])
+              p_aq, p_sl, p_hw, p_wh, p_mu = check_synergies(p["owned_auras"])
               syn_tags = ""
+              if p_mu: syn_tags += " 🎼"
               if p_wh: syn_tags += " 🎪"
               if p_hw: syn_tags += " 🎃"
               if p_sl: syn_tags += " 🐌"
               elif p_aq: syn_tags += " 🌊"
               
               p_badge = ""
-              if p["buff_boss_turns"] > 0 or p["buff_prism_turns"] > 0: p_badge += " 🚀"
+              if p["buff_boss_turns"] > 0 or p["buff_prism_turns"] > 0 or p.get("buff_music_turns", 0) > 0: p_badge += " 🚀"
               if p["debuff_slow_turns"] > 0: p_badge += " 🌀"
               
               st.markdown(f"<div style='font-size:15px;'><b>{rank_badge}</b>{styled_name}{syn_tags}{p_badge} {diff_html}</div>", unsafe_allow_html=True)
               st.caption(f"{status_txt} | [{p['job']}] | 누적: **{p['score']}점**")
               st.markdown(f"최근: {icons.get(p['last_aura'], '✨')} `{p['last_aura']}`" if p["last_denom"] > 0 else f"최근: {p['last_aura']}")
+
+  st.divider()
+  st.subheader("🍀 이번 게임 실시간 최고 행운 랭킹 (TOP 10)")
+  all_battle_luck = []
+  for p in participants:
+    for h in p["history"]:
+      if h["denom"] > 0 and h["aura"] != "🔒 [잠김]":
+        all_battle_luck.append({
+            "name": p["name"],
+            "is_player": p["is_player"],
+            "job": p["job"],
+            "turn": h["turn"],
+            "aura": h["aura"],
+            "denom": h["denom"]
+        })
+  if all_battle_luck:
+    all_battle_luck.sort(key=lambda x: x["denom"], reverse=True)
+    with st.container(border=True):
+      for r_idx, rec in enumerate(all_battle_luck[:10], 1):
+        p_label = f"{rec['name']} (나)" if rec['is_player'] else rec['name']
+        icon = icons.get(rec['aura'], "✨")
+        st.markdown(f"**{r_idx}위** | 👤 **{p_label}** ([{rec['job']}]) — **{rec['turn']}턴**에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
+  else:
+    st.caption("아직 턴이 진행되지 않았습니다.")
 
 
 with tab_gacha:
@@ -795,9 +849,18 @@ with tab_synergy:
       > 심해의 기운이 모여, 최고 등급 아우라 중 하나인 **레비아탄(`༒ 𝕷𝕰𝕁𝕴𝕬𝕿𝕳𝕬𝕹 ༒`)이 등장할 확률이 2배 증가**합니다!
       """)
 
+    with st.container(border=True):
+      st.markdown("### 🎼 3. 음악에 몸을 맡겨봐")
+      st.markdown("**조합 아우라**: 자장가 + 심포니(`𝓢𝔂𝓶𝓹𝓱𝓸𝓷𝔂♤`)")
+      st.markdown("**이모티콘**: 🎼🎶")
+      st.markdown("""
+      > **효과 설명**:
+      > 참가자 현황판에서 **본인과 같은 가로줄(행)에 있는 사람** 중 누군가 **1억 이상의 아우라**를 뽑는다면, 그 **다음 턴에 행운이 50배 증가(🚀)**합니다!
+      """)
+
   with col_s2:
     with st.container(border=True):
-      st.markdown("### 🎪 3. 웰컴 투더 헬")
+      st.markdown("### 🎪 4. 웰컴 투더 헬")
       st.markdown("**조합 아우라**: 사도:베일 + 악몽의 하늘")
       st.markdown("**이모티콘**: 🎃👁️🌌")
       st.markdown("""
@@ -807,7 +870,7 @@ with tab_synergy:
       """)
 
     with st.container(border=True):
-      st.markdown("### 🐌 4. 느려도 괜찮아 (수족관 심화)")
+      st.markdown("### 🐌 5. 느려도 괜찮아 (수족관 심화)")
       st.markdown("**조합 아우라**: 아쿠아리움 + 샤킨 + 포세이돈 + 레비아탄")
       st.markdown("**이모티콘**: 🐠🦈🔱🌊")
       st.markdown("""
@@ -822,17 +885,25 @@ with tab_hof:
 
   st.markdown("---")
 
-  # 🌟 시즌 1 우승자 카드 (요청하신 정보 반영)
-  with st.container(border=True):
-    col_hof1, col_hof2 = st.columns([1, 3])
-    with col_hof1:
-      st.markdown("### 🥇 시즌 1")
+  col_season1, col_season2 = st.columns(2)
+
+  # 🌟 시즌 1 우승자 카드
+  with col_season1:
+    with st.container(border=True):
+      st.markdown("### 🥇 시즌 1 챔피언")
       st.markdown("👑 **우승자**: `실버스타`")
-    with col_hof2:
-      st.markdown("#### ✨ 압도적인 승리의 기록")
       st.markdown("- **최종 점수**: `4,968점`")
       st.markdown("- **사용 시너지**: `느려도 괜찮아 🐌` (아쿠아리움 + 샤킨 + 포세이돈 + 레비아탄)")
       st.caption("수많은 위협 속에서도 완벽한 디버프 진형을 구축하여 100인 배틀로얄의 정상에 오른 기념비적인 시즌 1 우승 기록입니다.")
+
+  # 🌟 시즌 2 우승자 카드
+  with col_season2:
+    with st.container(border=True):
+      st.markdown("### 🥇 시즌 2 챔피언")
+      st.markdown("👑 **우승자**: `헤파이스토스`")
+      st.markdown("- **최종 점수**: `4,815점`")
+      st.markdown("- **사용 시너지**: `시너지 없음`")
+      st.caption("어떠한 시너지 조합에도 의존하지 않고 오직 순수한 실력과 운만으로 100인의 경쟁자를 꺾고 왕좌를 차지한 시즌 2 우승 기록입니다.")
 
   st.markdown("---")
   st.markdown("### 🍀 역대 가장 운이 좋은 사람 랭킹 (전체 게임 통산 실시간 집계)")
@@ -853,7 +924,6 @@ with tab_hof:
           })
     
     if all_history_records:
-      # 분모(denom)가 큰 순서대로 정렬 (가장 확률이 낮은 게 1위)
       all_history_records.sort(key=lambda x: x["denom"], reverse=True)
       
       with st.container(height=400, border=True):
