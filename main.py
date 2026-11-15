@@ -240,13 +240,19 @@ def init_game(selected_job):
 
 st.title("⚔️ 아우라 종합 시뮬레이터")
 
-tab_battle, tab_gacha, tab_synergy = st.tabs(["⚔️ 100인 포인트 배틀로얄", "🎰 마스터 핸드 뽑기 창", "📖 시너지 도감 & 설명"])
+# 탭 메뉴 구성 (명예의 전당 탭 추가)
+tab_battle, tab_gacha, tab_synergy, tab_hof = st.tabs([
+    "⚔️ 100인 포인트 배틀로얄", 
+    "🎰 마스터 핸드 뽑기 창", 
+    "📖 시너지 도감 & 설명", 
+    "🏆 명예의 전당"
+])
 
 with tab_battle:
   if not st.session_state.game_started:
     st.markdown("""
     ### 📜 시스템 안내
-    - **🎭 히든 직업**: 도박사(1억 이상 2배 / **100만 미만 획득 시 점수 0점** - 단, 아케인 이상은 점수 획득 가능!), 수집가(+20점), 암살자(-15점)
+    - **🎭 히든 직업**: 도박사(1억 이상 2배 / **100만 미만 획득 시 점수 0점** - 아케인은 생존), 수집가(+20점), 암살자(-15점)
     - **👑 10턴 주기 솔로 보스 레이드**: 승리 시 3턴간 행운 5배 폭증(🚀)!
     - **🧬 아우라 시너지**: 수족관(`[아쿠아]`, `[느려도 괜찮아]`), `[해피 할로윈]`, `[웰컴 투더 헬]`
     """)
@@ -462,7 +468,6 @@ with tab_battle:
 
     total_alive = len(current_alive_after_powers)
     for rank_idx, p in enumerate(turn_results):
-      # [도박사]: 100만 미만(아케인 100만은 생존 가능!) 획득 시 0점 처리
       if p["job"] == "도박사" and p["last_denom"] < 1000000:
         earned_score = 0
         if p["is_player"]:
@@ -809,3 +814,54 @@ with tab_synergy:
       > **효과 설명**:
       > 수족관의 최종 완성 형태! 매 턴마다 **본인의 양옆(위아래 순위)에 있는 사람들에게 행운 2배 감소 디버프(🌀)**를 영구적으로 부여합니다.
       """)
+
+
+with tab_hof:
+  st.subheader("🏆 명예의 전당 (Hall of Fame)")
+  st.markdown("아우라 시뮬레이터 배틀로얄 역사에 빛나는 전설적인 우승자들의 기록관입니다.")
+
+  st.markdown("---")
+
+  # 🌟 시즌 1 우승자 카드 (요청하신 정보 반영)
+  with st.container(border=True):
+    col_hof1, col_hof2 = st.columns([1, 3])
+    with col_hof1:
+      st.markdown("### 🥇 시즌 1")
+      st.markdown("👑 **우승자**: `실버스타`")
+    with col_hof2:
+      st.markdown("#### ✨ 압도적인 승리의 기록")
+      st.markdown("- **최종 점수**: `4,968점`")
+      st.markdown("- **사용 시너지**: `느려도 괜찮아 🐌` (아쿠아리움 + 샤킨 + 포세이돈 + 레비아탄)")
+      st.caption("수많은 위협 속에서도 완벽한 디버프 진형을 구축하여 100인 배틀로얄의 정상에 오른 기념비적인 시즌 1 우승 기록입니다.")
+
+  st.markdown("---")
+  st.markdown("### 🍀 역대 가장 운이 좋은 사람 랭킹 (전체 게임 통산 실시간 집계)")
+  st.markdown("현재 진행 중이거나 지금까지 플레이한 모든 턴 중에서 **가장 희귀하고 확률이 낮은(분모가 큰) 아우라**를 뽑은 행운의 주인공들을 실시간으로 집계합니다!")
+
+  if st.session_state.game_started and 'participants' in st.session_state:
+    all_history_records = []
+    for p in st.session_state.participants:
+      for h in p["history"]:
+        if h["denom"] > 0 and h["aura"] != "🔒 [잠김]":
+          all_history_records.append({
+              "name": p["name"],
+              "is_player": p["is_player"],
+              "job": p["job"],
+              "turn": h["turn"],
+              "aura": h["aura"],
+              "denom": h["denom"]
+          })
+    
+    if all_history_records:
+      # 분모(denom)가 큰 순서대로 정렬 (가장 확률이 낮은 게 1위)
+      all_history_records.sort(key=lambda x: x["denom"], reverse=True)
+      
+      with st.container(height=400, border=True):
+        for rank_idx, rec in enumerate(all_history_records[:15], 1):
+          p_label = f"{rec['name']} (나)" if rec['is_player'] else rec['name']
+          icon = icons.get(rec['aura'], "✨")
+          st.markdown(f"**{rank_idx}위** | 👤 **{p_label}** ([{rec['job']}]) — {rec['turn']}턴차에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
+    else:
+      st.info("아직 수집된 뽑기 기록이 없습니다. 게임을 진행해 주세요!")
+  else:
+    st.info("현재 진행 중인 게임이 없습니다. 배틀로얄 게임을 시작하고 턴을 진행하면 실시간으로 랭킹이 채워집니다!")
