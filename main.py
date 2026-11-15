@@ -74,7 +74,6 @@ icons = {
     "굿": "👍✨", "희귀": "💧📘", "일반": "⚪📦",
 }
 
-# AI 99명 닉네임 풀
 AI_NAMES_POOL = [
     "별빛수호자", "그림자사냥꾼", "운명의주사위", "우주여행자", "푸른늑대", "붉은용기사", "새벽의별", "은하수방랑자", "천둥번개", "얼음여왕",
     "불꽃심장", "바람의노래", "황금기사", "심연의눈", "달빛검객", "태양의아들", "폭풍전사", "신비한마법사", "고대의현자", "어둠의군주",
@@ -88,10 +87,9 @@ AI_NAMES_POOL = [
     "아서왕", "란슬롯", "멀린", "가웨인", "퍼시벌", "트리스탄", "갤러해드", "모드레드", "기네비어"
 ]
 
-# 백만배 행운 뽑기 함수
-def roll_with_million_luck():
+def roll_with_million_luck(extra_luck_mult=1):
   current_weights = list(base_weights)
-  luck_mult = 1000000
+  luck_mult = 1000000 * extra_luck_mult
   eligible_indices = [idx for idx, item in enumerate(items) if denominators[item] >= luck_mult]
   for idx in range(len(items)):
     if idx not in eligible_indices:
@@ -100,7 +98,6 @@ def roll_with_million_luck():
       current_weights[idx] = current_weights[idx] * luck_mult
   return random.choices(items, weights=current_weights, k=1)[0]
 
-# 세션 상태 초기화
 if "game_started" not in st.session_state:
   st.session_state.game_started = False
 if "turn_summary" not in st.session_state:
@@ -121,7 +118,11 @@ def init_game():
       "rank_diff": 0,
       "last_aura": "-",
       "last_denom": 0,
-      "history": [],  # 뽑은 아우라 기록
+      "history": [],
+      "ever_got_100m": False,  # 1억 이상 아우라 획득 여부
+      "buff_origin_turns": 0,
+      "buff_prism_turns": 0,
+      "locked_turns": 0,
   }]
   for i in range(1, 100):
     participants.append({
@@ -136,6 +137,10 @@ def init_game():
         "last_aura": "-",
         "last_denom": 0,
         "history": [],
+        "ever_got_100m": False,
+        "buff_origin_turns": 0,
+        "buff_prism_turns": 0,
+        "locked_turns": 0,
     })
   st.session_state.participants = participants
   st.session_state.turn = 0
@@ -147,12 +152,9 @@ st.title("⚔️ 아우라 100인 서바이벌 포인트 배틀")
 
 if not st.session_state.game_started:
   st.markdown("""
-  ### 📜 포인트 서바이벌 규칙 안내
-  - **참가 인원**: 총 **100명** (나 1명 + 개성 있는 AI 99명) / **모든 뽑기 백만배 행운 기본 적용**
-  - **포인트 시스템**: 매 턴마다 생존자 전원이 1뽑씩 진행하고, **가장 높은 아우라(희귀도 기준)를 뽑은 사람이 1등(100점), 2등은 99점... 순차적으로 점수가 누적**됩니다.
-  - **매턴 1명 탈락**: 매 턴이 끝날 때마다 **누적 점수가 가장 낮은 플레이어 1명이 탈락**합니다!
-  - **순위 변동 표시**: 매 턴마다 전체 누적 순위가 올라가면 **빨간색(▲)**, 떨어지면 **파란색(▼)**으로 표시됩니다.
-  - **최후의 1인**: 오직 1명이 남을 때까지 턴이 계속 진행되며, 최종 우승자가 뽑았던 모든 아우라가 공개됩니다!
+  ### 📜 레인보우 칭호 시스템 안내
+  - 게임 도중 **1억 이상(1 in 100,000,000 이상)**의 초희귀 아우라를 단 한 번이라도 뽑은 참가자는 이름이 화려한 **레인보우 색상**으로 영구 변경됩니다!
+  - 각 1억 이상 아우라 고유의 강력한 특수 능력도 함께 발동합니다.
   """)
   if st.button("🚀 포인트 배틀 시작하기", type="primary", use_container_width=True):
     init_game()
@@ -177,7 +179,6 @@ with col_t3:
 
 st.divider()
 
-# 순위 변동 HTML 뱃지 생성 헬퍼
 def get_rank_diff_html(diff, curr_turn_num):
   if curr_turn_num <= 1:
     return "<span style='color:#888; font-size:12px;'>(NEW)</span>"
@@ -188,6 +189,14 @@ def get_rank_diff_html(diff, curr_turn_num):
   else:
     return "<span style='color:#888; font-size:12px;'>-</span>"
 
+def get_styled_name(p):
+  name_text = f"{p['name']} (나)" if p["is_player"] else p["name"]
+  if p["ever_got_100m"]:
+    # 레인보우 텍스트 스타일 적용
+    return f"<span style='background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00ffff, #0077ff, #9b00ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900;'>{name_text} ✨</span>"
+  else:
+    return f"<b>{name_text}</b>"
+
 # 턴 진행 로직
 def process_point_turn():
   st.session_state.turn += 1
@@ -195,25 +204,89 @@ def process_point_turn():
   alive = [p for p in participants if p["status"] == "playing"]
   
   turn_results = []
-  for p in alive:
-    aura = roll_with_million_luck()
+  special_events = []
+
+  for idx, p in enumerate(alive):
+    if p["locked_turns"] > 0:
+      p["locked_turns"] -= 1
+      p["last_aura"] = "🔒 [잠김]"
+      p["last_denom"] = 0
+      p["history"].append({"turn": t, "aura": "🔒 [잠김]", "denom": 0})
+      turn_results.append(p)
+      special_events.append(f"🔒 {p['name']}님은 잠금 상태라 뽑기를 하지 못하고 꼴찌 처리되었습니다!")
+      continue
+
+    extra_mult = 1
+    if p["buff_prism_turns"] > 0:
+      extra_mult *= 2
+      p["buff_prism_turns"] -= 1
+
+    aura = roll_with_million_luck(extra_mult)
     denom = denominators[aura]
     p["last_aura"] = aura
     p["last_denom"] = denom
     p["history"].append({"turn": t, "aura": aura, "denom": denom})
+    
+    # 1억 이상 뽑았을 경우 레인보우 칭호 획득 체크!
+    if denom >= 100000000:
+      p["ever_got_100m"] = True
+
     turn_results.append(p)
 
-  # 이번 턴 뽑기 순위 결정 (denom이 클수록 높은 순위)
+    # 1억 이상 아우라 특수 능력 발동 판정
+    if denom >= 100000000:
+      if aura == "𝓣𝓱𝓮 𝓞𝓻𝓲𝓰𝓲𝓷 𝓗𝓪𝓷𝓭":
+        p["buff_origin_turns"] = 3
+        special_events.append(f"🖐️ **[태초의 권능 발동!]** {p['name']}님이 [𝓣𝓱𝓮 𝓞𝓻𝓲𝓰𝓲𝓷 𝓗𝓪𝓷𝓭]을(를) 뽑아 3턴 동안 1등으로 확정됩니다!")
+      elif aura == "𝓓𝓻𝓮𝓪𝓶𝓬𝓪𝓽𝓬𝓱𝓮𝓻":
+        for neighbor_idx in [idx - 1, idx + 1]:
+          if 0 <= neighbor_idx < len(alive):
+            alive[neighbor_idx]["locked_turns"] = 2
+        special_events.append(f"🕸️ **[드림캐쳐 발동!]** {p['name']}님의 주변 인물들이 2턴 동안 꿈속에 갇힙니다!")
+      elif aura == "𝓘𝓬𝓮𝓐𝓰𝓮":
+        for neighbor_idx in [idx - 1, idx + 1]:
+          if 0 <= neighbor_idx < len(alive):
+            alive[neighbor_idx]["locked_turns"] = 1
+        special_events.append(f"❄️ **[아이스 에이지 발동!]** {p['name']}님의 한파로 주변 인물들이 1턴 동안 얼어붙습니다!")
+      elif aura == "༒ 𝕷𝕰𝕁𝕴𝕬𝕿𝕳𝕬𝕹 ༒":
+        other_alive = [x for x in alive if x != p]
+        if other_alive:
+          top_one = max(other_alive, key=lambda x: x["score"])
+          top_one["status"] = "eliminated"
+          special_events.append(f"🐉 **[절대포식 발동!]** 리바이어던을 뽑은 {p['name']}님이 현재 누적 1등인 {top_one['name']}님을 집어삼켜 탈락시켰습니다!")
+      elif aura == "수확가":
+        neighbors = []
+        if idx > 0: neighbors.append(alive[idx - 1])
+        if idx < len(alive) - 1: neighbors.append(alive[idx + 1])
+        if neighbors:
+          target = random.choice(neighbors)
+          stolen = target["score"] // 2
+          target["score"] -= stolen
+          p["score"] += stolen
+          special_events.append(f"🗡️ **[영혼 수확!]** {p['name']}님이 {target['name']}님의 점수 절반({stolen}점)을 흡수했습니다!")
+      elif aura == "✧ 𝓗𝔂𝓹𝓮𝓻 𝓟𝓻𝓲𝓼𝓶 ✧":
+        p["buff_prism_turns"] = 2
+        special_events.append(f"💎 **[프리즘 공명]** {p['name']}님의 행운이 2턴 동안 2배 증폭됩니다!")
+      elif aura == "𝓢𝓹𝓮𝓬𝓽𝓻𝓪𝓕𝓵𝓸𝔀 𖤐":
+        if idx > 0:
+          above_person = alive[idx - 1]
+          above_person["status"] = "eliminated"
+          special_events.append(f"💠 **[스펙트라 플로우!]** {p['name']}님이 순위표 바로 위에 있던 {above_person['name']}님을 즉시 제거했습니다!")
+
+  for p in alive:
+    if p["buff_origin_turns"] > 0:
+      p["buff_origin_turns"] -= 1
+      p["last_denom"] = 999999999999
+
   turn_results.sort(key=lambda x: x["last_denom"], reverse=True)
 
   total_alive = len(alive)
-  for idx, p in enumerate(turn_results):
-    earned_score = max(1, 100 - int((idx / max(1, total_alive - 1)) * 99)) if total_alive > 1 else 100
+  for rank_idx, p in enumerate(turn_results):
+    earned_score = max(1, 100 - int((rank_idx / max(1, total_alive - 1)) * 99)) if total_alive > 1 else 100
     p["score"] += earned_score
-    p["last_turn_rank"] = idx + 1
+    p["last_turn_rank"] = rank_idx + 1
     p["last_earned"] = earned_score
 
-  # 전체 생존자 누적 점수 기준 순위 재계산 및 순위 변동 기록
   alive_sorted_by_score = sorted(alive, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
   for overall_idx, p in enumerate(alive_sorted_by_score, 1):
     if t == 1:
@@ -225,19 +298,26 @@ def process_point_turn():
       p["curr_overall_rank"] = overall_idx
       p["rank_diff"] = p["prev_overall_rank"] - p["curr_overall_rank"]
 
-  # 누적 점수 최하위 1명 탈락 처리
-  lowest_player = alive_sorted_by_score[-1]
-  lowest_player["status"] = "eliminated"
+  elimination_count = 2 if any(p["last_aura"] == "악몽의 하늘" for p in turn_results) else 1
+  
+  eliminated_this_turn = []
+  for _ in range(elimination_count):
+    active_pool = [x for x in alive_sorted_by_score if x["status"] == "playing"]
+    if active_pool:
+      low_p = active_pool[-1]
+      low_p["status"] = "eliminated"
+      eliminated_this_turn.append(low_p)
+      alive_sorted_by_score.remove(low_p)
 
-  if len(alive) - 1 <= 1:
-    for p in alive:
-      if p["status"] == "playing" and p != lowest_player:
-        p["status"] = "winner"
-        p["curr_overall_rank"] = 1
+  final_alive = [p for p in participants if p["status"] == "playing"]
+  if len(final_alive) <= 1:
+    for p in final_alive:
+      p["status"] = "winner"
+      p["curr_overall_rank"] = 1
 
-  # 이번 턴 로그 저장 (이번 턴 뽑기 순위 순)
   new_logs = []
   for p in turn_results:
+    is_elim = p in eliminated_this_turn
     new_logs.append({
         "name": p["name"],
         "is_player": p["is_player"],
@@ -247,18 +327,20 @@ def process_point_turn():
         "earned": p["last_earned"],
         "total_score": p["score"],
         "rank_diff": p["rank_diff"],
-        "eliminated_now": (p == lowest_player)
+        "eliminated_now": is_elim,
+        "ever_got_100m": p["ever_got_100m"]
     })
 
-  st.session_state.turn_logs = new_logs
-  st.session_state.turn_summary = (
-      f"📢 [{t}턴 결과] 이번 턴 1위: **{turn_results[0]['name']}** ({turn_results[0]['last_aura']}) | "
-      f"누적 점수 최하위로 **{lowest_player['name']}**님이 탈락했습니다!"
-  )
+  elim_names = ", ".join([e["name"] for e in eliminated_this_turn])
+  summary_text = f"📢 [{t}턴 결과] 이번 턴 1위: **{turn_results[0]['name']}** ({turn_results[0]['last_aura']}) | 최하위 탈락자: **{elim_names}**"
+  if special_events:
+    summary_text += " | ✨ [특수 능력 발동]: " + " / ".join(special_events)
 
-# 상단 컨트롤 버튼
+  st.session_state.turn_logs = new_logs
+  st.session_state.turn_summary = summary_text
+
 if not is_game_over:
-  btn_label = f"🎲 {curr_turn + 1}턴 진행 (1뽑 및 포인트 집계)" if player_info["status"] == "playing" else f"👁️ {curr_turn + 1}턴 관전 진행 (AI 포인트 집계)"
+  btn_label = f"🎲 {curr_turn + 1}턴 진행 (특수 능력 & 포인트 집계)" if player_info["status"] == "playing" else f"👁️ {curr_turn + 1}턴 관전 진행"
   if st.button(btn_label, type="primary", use_container_width=True):
     process_point_turn()
     st.rerun()
@@ -266,7 +348,7 @@ else:
   winner = next((p for p in participants if p["status"] in ["winner", "playing"]), None)
   if winner and winner["is_player"]:
     st.balloons()
-    st.success("🏆 축하합니다! 100인 포인트 서바이벌에서 최종 우승하셨습니다!")
+    st.success("🏆 축하합니다! 1억 이상 아우라의 레인보우 권능을 뚫고 최종 우승하셨습니다!")
   elif winner:
     st.success(f"👑 서바이벌 종료! 최후의 1인 최종 우승자는 **[{winner['name']}]**입니다!")
   if st.button("🔄 새 게임 시작하기", type="primary", use_container_width=True):
@@ -275,7 +357,6 @@ else:
 
 st.info(st.session_state.turn_summary)
 
-# 화면 분할: 왼쪽(이번 턴 로그 또는 우승자 히스토리) / 오른쪽(참가자 카드 그리드)
 col_left, col_right = st.columns([1, 1.4])
 
 with col_left:
@@ -285,7 +366,6 @@ with col_left:
     with st.container(height=600, border=True):
       st.markdown(f"**총 누적 점수:** `{winner['score']}점` (총 {len(winner['history'])}턴 생존)")
       st.divider()
-      # 우승자가 뽑았던 아우라 전체 내역 표시 (희귀도 높은 순 & 턴별 내역)
       best_win_aura = max(winner["history"], key=lambda x: x["denom"])
       st.success(f"🌟 **최고 기록 아우라:** {icons.get(best_win_aura['aura'], '✨')} **{best_win_aura['aura']}** (`1 in {best_win_aura['denom']:,}`)")
       st.markdown("#### 📜 턴별 획득 아우라 전체 목록")
@@ -301,8 +381,15 @@ with col_left:
       else:
         for log in st.session_state.turn_logs:
           diff_html = get_rank_diff_html(log["rank_diff"], curr_turn)
-          name_str = f"<b>👉 {log['name']}</b>" if log["is_player"] else f"<b>{log['name']}</b>"
-          aura_str = f"{icons.get(log['aura'], '✨')} {log['aura']} (1 in {log['denom']:,})"
+          
+          # 로그에서도 레인보우 이름 적용
+          log_name_text = f"{log['name']} (나)" if log["is_player"] else log['name']
+          if log["ever_got_100m"]:
+            name_str = f"<span style='background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00ffff, #0077ff, #9b00ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900;'>{log_name_text} ✨</span>"
+          else:
+            name_str = f"<b>{log_name_text}</b>"
+
+          aura_str = f"{icons.get(log['aura'], '✨')} {log['aura']} (1 in {log['denom']:,})" if log['denom'] > 0 else f"{log['aura']}"
           elim_badge = " <span style='color:#ff4b4b; font-weight:bold;'>[💀 탈락]</span>" if log["eliminated_now"] else ""
           
           st.markdown(
@@ -314,7 +401,7 @@ with col_left:
           )
 
 with col_right:
-  st.subheader("👥 참가자 현황판 (누적 점수 & 순위 변동)")
+  st.subheader("👥 참가자 현황판 (레인보우 칭호 & 누적 순위)")
   
   sorted_participants = sorted(
       participants,
@@ -339,9 +426,9 @@ with col_right:
               diff_html = ""
               status_txt = "💀 탈락"
 
-            me_mark = " (나)" if p["is_player"] else ""
+            styled_name = get_styled_name(p)
             st.markdown(
-                f"<div style='font-size:15px;'><b>{rank_badge}{p['name']}{me_mark}</b> {diff_html}</div>",
+                f"<div style='font-size:15px;'><b>{rank_badge}</b>{styled_name} {diff_html}</div>",
                 unsafe_allow_html=True,
             )
             st.caption(f"{status_txt} | 누적: **{p['score']}점**")
@@ -349,4 +436,4 @@ with col_right:
             if p["last_denom"] > 0:
               st.markdown(f"최근: {icons.get(p['last_aura'], '✨')} `{p['last_aura']}`")
             else:
-              st.markdown("최근: 대기 중")
+              st.markdown(f"최근: {p['last_aura']}")
