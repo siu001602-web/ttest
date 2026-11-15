@@ -3,7 +3,7 @@ import streamlit as st
 
 # 페이지 설정
 st.set_page_config(
-    page_title="아우라 100인 서바이벌 & 마스터 핸드 뽑기 시뮬레이터", page_icon="⚔️", layout="wide"
+    page_title="아우라 종합 시뮬레이터", page_icon="⚔️", layout="wide"
 )
 
 # 1. 기존 배틀로얄용 등급 리스트 정의 (희귀도 높은 순)
@@ -52,7 +52,6 @@ denominators_battle = {
 base_weights_battle = [max(1, int(7500000000000 / denominators_battle[item])) for item in items_battle]
 
 # 2. 새로운 가챠(아케인 ~ 마스터 핸드) 전용 등급 및 확률 정의
-# (아케인부터 최고 등급 마스터 핸드까지 순서대로 배치)
 items_gacha = [
     "🌟 𝓜𝓪𝓼𝓽𝓮𝓻 𝓗𝓪𝓷𝓭 🌟", "𝓣𝓱𝓮 𝓞𝓻𝓲𝓰𝓲𝓷 𝓗𝓪𝓷𝓭", "𝓓𝓻𝓮𝓪𝓶𝓬𝓪𝓽𝓬𝓱𝓮𝓻", "𝓘𝓬𝓮𝓐𝓰𝓮", 
     "༒ 𝕷𝕰𝕁𝕴𝕬𝕿𝕳𝕬𝕹 ༒", "사도:베일", "수확가", "𝓜𝓪𝓶𝓶𝓸𝓽𝓱", 
@@ -60,7 +59,7 @@ items_gacha = [
 ]
 
 denominators_gacha = {
-    "🌟 𝓜𝓪𝓼𝓽𝓮𝓻 𝓗𝓪𝓷𝓭 🌟": 50000000000, # 마스터 핸드 (최고 등급)
+    "🌟 𝓜𝓪𝓼𝓽𝓮𝓻 𝓗𝓪𝓷𝓭 🌟": 50000000000,
     "𝓣𝓱𝓮 𝓞𝓻𝓲𝓰𝓲𝓷 𝓗𝓪𝓷𝓭": 7500000000, 
     "𝓓𝓻𝓮𝓪𝓶𝓬𝓪𝓽𝓬𝓱𝓮𝓻": 2222222222, 
     "𝓘𝓬𝓮𝓐𝓰𝓮": 1500000000, 
@@ -113,7 +112,6 @@ def roll_battle_luck(extra_luck_mult=1):
   return random.choices(items_battle, weights=current_weights, k=1)[0]
 
 def roll_gacha_luck():
-  # 백만배 행운 적용된 아케인~마스터핸드 뽑기
   current_weights = list(base_weights_gacha)
   luck_mult = 1000000
   eligible_indices = [idx for idx, item in enumerate(items_gacha) if denominators_gacha[item] >= luck_mult]
@@ -124,7 +122,6 @@ def roll_gacha_luck():
       current_weights[idx] = current_weights[idx] * luck_mult
   return random.choices(items_gacha, weights=current_weights, k=1)[0]
 
-# 세션 상태 초기화
 if "game_started" not in st.session_state:
   st.session_state.game_started = False
 if "turn_summary" not in st.session_state:
@@ -132,7 +129,6 @@ if "turn_summary" not in st.session_state:
 if "turn_logs" not in st.session_state:
   st.session_state.turn_logs = []
 
-# 신규 가챠 전용 세션 상태 초기화
 if "gacha_total_tries" not in st.session_state:
   st.session_state.gacha_total_tries = 0
 if "gacha_first_records" not in st.session_state:
@@ -189,7 +185,6 @@ def init_game():
 
 st.title("⚔️ 아우라 종합 시뮬레이터")
 
-# 상단 탭 메뉴 (모드 전환)
 tab_battle, tab_gacha = st.tabs(["⚔️ 100인 포인트 배틀로얄", "🎰 마스터 핸드 & 아케인 뽑기 창"])
 
 with tab_battle:
@@ -233,6 +228,7 @@ with tab_battle:
       return "<span style='color:#888; font-size:12px;'>-</span>"
 
   aura_colors = {
+      "🌟 𝓜𝓪𝓼𝓽𝓮𝓻 𝓗𝓪𝓷𝓭 🌟": "background: linear-gradient(90deg, #ffcc00, #ff3366, #9900ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;",
       "𝓣𝓱𝓮 𝓞𝓻𝓲𝓰𝓲𝓷 𝓗𝓪𝓷𝓭": "linear-gradient(90deg, #b92b27, #1565c0); -webkit-background-clip: text; -webkit-text-fill-color: transparent;",
       "𝓓𝓻𝓮𝓪𝓶𝓬𝓪𝓽𝓬𝓱𝓮𝓻": "color: #ce93d8; text-shadow: 0 0 5px #ab47bc;",
       "𝓘𝓬𝓮𝓐𝓰𝓮": "color: #80d8ff; text-shadow: 0 0 5px #00b0ff;",
@@ -507,7 +503,6 @@ with tab_gacha:
   st.subheader("🎰 아케인 ~ 마스터 핸드 전용 백만배 행운 뽑기 창")
   st.markdown("백만배 행운이 적용된 상태로 **아케인**부터 최고 등급인 **마스터 핸드**까지 직접 뽑고, 각 등급별 최초 획득 횟수(몇트 만에 떴는지)와 가장 늦게 뜬 아우라를 확인해보세요!")
 
-  # 뽑기 실행 함수
   def execute_gacha(count):
     for _ in range(count):
       st.session_state.gacha_total_tries += 1
@@ -515,11 +510,9 @@ with tab_gacha:
       aura = roll_gacha_luck()
       denom = denominators_gacha[aura]
       
-      # 최초 획득 기록 (아직 기록된 적 없다면 현재 시도 횟수 저장)
       if st.session_state.gacha_first_records[aura] is None:
         st.session_state.gacha_first_records[aura] = tries
         
-      # 최근 뽑기 히스토리에 추가 (최신순 10개)
       st.session_state.gacha_latest_history.insert(0, {"tries": tries, "aura": aura, "denom": denom})
       if len(st.session_state.gacha_latest_history) > 10:
         st.session_state.gacha_latest_history.pop()
@@ -542,15 +535,14 @@ with tab_gacha:
 
   st.divider()
 
-  col_gacha_left, col_gacha_right = st.columns(1.2)
+  # 🛠️ 에러 수정 완료: st.columns(1.2)를 정수 비율 리스트 [3, 4]로 변경했습니다.
+  col_gacha_left, col_gacha_right = st.columns([3, 4])
 
   with col_gacha_left:
     st.markdown(f"### 📊 누적 뽑기 횟수: `{st.session_state.gacha_total_tries}회`")
     st.markdown("#### 🏆 등급별 최초 획득 기록 (몇 번째 시도에 떴나?)")
     
-    # 아케인 ~ 마스터 핸드 목록 표시 (희귀도 높은 순)
     with st.container(height=450, border=True):
-      # 가장 늦게 뜬 아우라(최초 획득 횟수가 가장 큰 아우라) 계산
       acquired_records = {k: v for k, v in st.session_state.gacha_first_records.items() if v is not None}
       slowest_aura = max(acquired_records, key=acquired_records.get) if acquired_records else None
 
