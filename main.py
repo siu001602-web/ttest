@@ -86,13 +86,21 @@ def roll_with_million_luck():
       current_weights[idx] = current_weights[idx] * luck_mult
   return random.choices(items, weights=current_weights, k=1)[0]
 
+# 세션 상태 기본값 초기화
+if "game_started" not in st.session_state:
+  st.session_state.game_started = False
+if "turn_summary" not in st.session_state:
+  st.session_state.turn_summary = "게임이 시작되었습니다! '다음 턴 진행' 버튼을 눌러주세요."
+if "turn_logs" not in st.session_state:
+  st.session_state.turn_logs = []
+
 # 게임 초기화 함수
 def init_game():
   participants = [{
       "id": 0,
       "name": "나 (플레이어)",
       "is_player": True,
-      "status": "playing",      # playing, passed_r1, passed_r2, eliminated, winner
+      "status": "playing",
       "last_aura": "-",
       "last_denom": 0,
       "best_aura": "-",
@@ -116,16 +124,13 @@ def init_game():
   st.session_state.turn_logs = []
   st.session_state.game_started = True
 
-if "game_started" not in st.session_state:
-  st.session_state.game_started = False
-
 st.title("⚔️ 아우라 100인 서바이벌 배틀로얄")
 
 if not st.session_state.game_started:
   st.markdown("""
   ### 📜 게임 규칙 안내
   - **참가 인원**: 총 **100명** (나 1명 + AI 99명) / **모든 뽑기 백만배 행운 기본 적용**
-  - **턴제 진행**: 버튼을 누를 때마다 생존 중인 모든 참가자가 **1턴(1뽑)**씩 진행하며, 매 턴 결과가 새롭게 표시됩니다.
+  - **턴제 진행**: 버튼을 누를 때마다 생존 중인 모든 참가자가 **1턴(1뽑)**씩 진행하며, 매 턴 결과가 새롭게 초기화되어 표시됩니다.
   - **1라운드 (선착순 50명)**: **5천만(1 in 50,000,000) 이상** 희귀도 아우라를 뽑으면 1라운드 통과!
   - **2라운드 (선착순 25명)**: **7천만(1 in 70,000,000) 이상** 희귀도 아우라를 뽑으면 2라운드 통과!
   - **3라운드 (결승전)**: 결승 진출자 25명이 동시에 1뽑을 진행하여 **가장 확률이 높은(희귀도가 가장 낮은) 아우라를 뽑은 1명이 탈락**하고 나머지가 최종 우승!
@@ -169,7 +174,6 @@ def process_next_turn():
   t = st.session_state.turn
   r = st.session_state.round
   
-  # 매 턴마다 로그 초기화
   new_turn_logs = []
 
   # 1라운드 또는 2라운드 진행
@@ -214,7 +218,6 @@ def process_next_turn():
             "passed": False
         })
 
-    # 좋은 아우라 뽑은 순서대로 이번 턴 로그 정렬
     new_turn_logs.sort(key=lambda x: x["denom"], reverse=True)
     st.session_state.turn_logs = new_turn_logs
 
@@ -295,7 +298,7 @@ else:
 
 st.info(st.session_state.turn_summary)
 
-# 왼쪽: 이번 턴 뽑기 로그 (매 턴 초기화) / 오른쪽: 최고 아우라 TOP 3 및 전체 현황
+# 왼쪽: 이번 턴 뽑기 로그 / 오른쪽: 전체 최고 아우라 TOP 3
 col_log, col_top3 = st.columns([1.2, 1])
 
 with col_log:
