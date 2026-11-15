@@ -57,7 +57,7 @@ items_gacha = [
     "༒ 𝕷𝕰𝕁𝕴𝕬𝕿𝕳𝕬𝕹 ༒", "사도:베일", "수확가", "𝓜𝓪𝓶𝓶𝓸𝓽𝓱", 
     "악몽의 하늘", "✧ 𝓗𝔂𝓹𝓮𝓻 𝓟𝓻𝓲𝓼𝓶 ✧", "𝓢𝔂𝓶𝓹𝓱𝓸𝓷𝔂♤", "𝓢𝓹𝓮𝓬𝓽𝓻𝓪𝓕𝓵𝓸𝔀 𖤐", 
     "감시자", "아쿠아리움", "선원", "샤킨", "포세이돈", "에바네샌트", 
-    "기원", "망령", "대마법사", "아케인"
+    "기원", "망령", "듀라한", "대마법사", "아케인"
 ]
 
 denominators_gacha = {
@@ -81,6 +81,7 @@ denominators_gacha = {
     "에바네샌트": 3360000,
     "기원": 6500000, 
     "망령": 4100000,
+    "듀라한": 72000000,
     "대마법사": 1766000, 
     "아케인": 1000000
 }
@@ -95,7 +96,7 @@ icons = {
     "✧ 𝓗𝔂𝓹𝓮𝓻 𝓟𝓻𝓲𝓼𝓶 ✧": "🌈💎✨", "𝓢𝔂𝓶𝓹𝓱𝓸𝓷𝔂♤": "🎼🎻✨♠️", "𝓢𝓹𝓮𝓬𝓽𝓻𝓪𝓕𝓵𝓸𝔀 𖤐": "🌌💠💫",
     "༒ 𝕷𝕰𝕁𝕴𝕬𝕿𝕳𝕬𝕹 ༒": "🌊🐉🌀", "감시자": "👁️‍🗨️⚡",
     "아쿠아리움": "🐠🌊🏛️", "선원": "⚓⛵🌊", "샤킨": "🦈🌊⚡", "포세이돈": "🔱🌊🌊", "에바네샌트": "🌀✨🌌",
-    "기원": "🌌✨", "망령": "👻⚡",
+    "기원": "🌌✨", "망령": "👻⚡", "듀라한": "🎃🛡️",
     "대마법사": "🧙‍♂️✨", "아케인": "🔮👑",
 }
 
@@ -113,15 +114,17 @@ AI_NAMES_POOL = [
 ]
 
 JOBS = {
-    "도박사": "🎰 1억 이상 아우라 확률 2배! (단, 100만 이하 획득 시 점수 0점)",
-    "수집가": "📚 새로운 종류의 아우라 최초 획득 시 보너스 점수 +20점",
-    "암살자": "🗡️ 매 턴 순위표 바로 아래 사람 점수 -15점 차감"
+    "도박사": "🎰 1억 이상 확률 2배! (100만 이하 획득 시 점수 0점)",
+    "수집가": "📚 신규 아우라 최초 획득 시 보너스 점수 +20점",
+    "암살자": "🗡️ 매 턴 순위표 아래 사람 점수 -15점 차감"
 }
 
 def check_synergies(owned_set):
   has_aqua = {"아쿠아리움", "샤킨", "포세이돈"}.issubset(owned_set)
   has_slow_ok = {"아쿠아리움", "샤킨", "포세이돈", "༒ 𝕷𝕰𝕁𝕴𝕬𝕿𝕳𝕬𝕹 ༒"}.issubset(owned_set)
-  return has_aqua, has_slow_ok
+  has_halloween = {"듀라한", "망령", "수확가"}.issubset(owned_set)
+  has_welcome_hell = {"사도:베일", "악몽의 하늘"}.issubset(owned_set)
+  return has_aqua, has_slow_ok, has_halloween, has_welcome_hell
 
 def roll_battle_luck(extra_luck_mult=1.0, is_gambler=False, has_aqua_synergy=False):
   current_weights = list(base_weights_battle)
@@ -231,13 +234,14 @@ def init_game(selected_job):
     })
   st.session_state.participants = participants
   st.session_state.turn = 0
-  st.session_state.turn_summary = f"게임 시작! 선택한 직업: **[{selected_job}]** - '1턴 진행' 버튼을 눌러주세요."
+  st.session_state.turn_summary = f"게임 시작! 직업: **[{selected_job}]** - '1턴 진행' 버튼을 눌러주세요."
   st.session_state.turn_logs = []
   st.session_state.game_started = True
 
 st.title("⚔️ 아우라 종합 시뮬레이터")
 
-tab_battle, tab_gacha = st.tabs(["⚔️ 100인 포인트 배틀로얄", "🎰 마스터 핸드 뽑기 창"])
+# 탭 메뉴 구성 (시너지 도감 탭 추가)
+tab_battle, tab_gacha, tab_synergy = st.tabs(["⚔️ 100인 포인트 배틀로얄", "🎰 마스터 핸드 뽑기 창", "📖 시너지 도감 & 설명"])
 
 with tab_battle:
   if not st.session_state.game_started:
@@ -245,7 +249,7 @@ with tab_battle:
     ### 📜 시스템 안내
     - **🎭 히든 직업**: 도박사(1억 이상 2배 / 100만 이하 0점), 수집가(+20점), 암살자(-15점)
     - **👑 10턴 주기 솔로 보스 레이드**: 승리 시 3턴간 행운 5배 폭증(🚀)!
-    - **🧬 아우라 시너지 (수족관)**: `[아쿠아]`(레비아탄 확률 2배) 및 `[느려도 괜찮아]`(양옆 디버프 🌀)
+    - **🧬 아우라 시너지**: 수족관(`[아쿠아]`, `[느려도 괜찮아]`), **[해피 할로윈]**, **[웰컴 투더 헬]** 추가!
     """)
     
     selected_job = st.radio(
@@ -277,7 +281,7 @@ with tab_battle:
     p_status_str = "🏆 최종 우승!" if player_info["status"] == "winner" else ("💀 탈락" if player_info["status"] == "eliminated" else f"🎮 생존 (포션: {player_info['potions']}개)")
     st.metric("내 상태", p_status_str)
 
-  # 🌟 항상 눈에 띄도록 상단에 플레이어의 현재 버프/디버프 상태 표시 박스 고정
+  # 플레이어 행운 상태 표시
   status_icons = []
   if player_info["buff_boss_turns"] > 0: status_icons.append(f"🚀 **보스 버프 (행운 5배)** ({player_info['buff_boss_turns']}턴 남음)")
   if player_info["use_potion_next"]: status_icons.append("🚀 **포션 대기중 (행운 2배)**")
@@ -338,7 +342,7 @@ with tab_battle:
 
     # 수족관(심화) 스킬 '느려도 괜찮아' 양옆 디버프 부여
     for idx, p in enumerate(alive):
-      _, has_slow = check_synergies(p["owned_auras"])
+      _, has_slow, _, _ = check_synergies(p["owned_auras"])
       if has_slow:
         for neighbor_idx in [idx - 1, idx + 1]:
           if 0 <= neighbor_idx < len(alive):
@@ -378,7 +382,7 @@ with tab_battle:
         p["potions"] -= 1
         extra_mult *= 2.0
 
-      has_aqua, _ = check_synergies(p["owned_auras"])
+      has_aqua, _, _, _ = check_synergies(p["owned_auras"])
       is_gambler = (p["job"] == "도박사")
 
       aura = roll_battle_luck(extra_mult, is_gambler=is_gambler, has_aqua_synergy=has_aqua)
@@ -474,8 +478,29 @@ with tab_battle:
       p["last_turn_rank"] = rank_idx + 1
       p["last_earned"] = earned_score
 
-    # [암살자]: 아래 순위 사람 점수 15점 차감
+    # 점수 정렬 후 중간 계산 (순위표 기준)
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
+
+    # 🧬 [시너지: 해피 할로윈] (듀라한+망령+수확가) 적용
+    # 턴 순위표에서 본인 근처 10등 사이 중 1명의 절반 점수를 가져오고 뺏긴 사람은 점수를 반밖에 못받음(이번 턴 획득 점수 반토막)
+    for idx, p in enumerate(alive_sorted_by_score):
+      _, _, has_halloween, _ = check_synergies(p["owned_auras"])
+      if has_halloween:
+        # 근처 10등 사이 범위 (idx - 5 ~ idx + 5, 본인 제외)
+        start_range = max(0, idx - 5)
+        end_range = min(len(alive_sorted_by_score), idx + 6)
+        candidates = [alive_sorted_by_score[i] for i in range(start_range, end_range) if i != idx]
+        if candidates:
+          target = random.choice(candidates)
+          stolen_score = target["score"] // 2
+          target["score"] -= stolen_score
+          p["score"] += stolen_score
+          # 뺏긴 사람은 이번 턴 획득 점수 반토막
+          target["last_earned"] = target.get("last_earned", 0) // 2
+          if p["is_player"]:
+            special_events.append(f"🎃 **[해피 할로윈 발동!]** 근처 10위 내에 있는 {target['name']}님의 점수 절반({stolen_score}점)을 강탈했습니다!")
+
+    # 암살자 스킬 처리
     for overall_idx, p in enumerate(alive_sorted_by_score):
       if p["job"] == "암살자" and overall_idx + 1 < len(alive_sorted_by_score):
         target_below = alive_sorted_by_score[overall_idx + 1]
@@ -483,6 +508,7 @@ with tab_battle:
         if p["is_player"]:
           special_events.append(f"🗡️ **[암살자 스킬]** 바로 아래 순위({target_below['name']})의 점수 하락(📉 -15점)!")
 
+    # 최종 정렬 및 순위 부여
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
     for overall_idx, p in enumerate(alive_sorted_by_score, 1):
       if t == 1:
@@ -511,9 +537,22 @@ with tab_battle:
       if boss_winners:
         special_events.append(f"⚔️ [{t}턴 보스 토벌 성공자 {len(boss_winners)}명]: 행운 증가(🚀 3턴)")
 
+    # 기본 탈락자 1명 (+ 악몽의 하늘 효과 시 2명)
     elimination_count = 2 if any(p["last_aura"] == "악몽의 하늘" for p in turn_results) else 1
+
+    # 🧬 [시너지: 웰컴 투더 헬] (사도:베일 + 악몽의 하늘) 효과: 본인 근처 사이 10등에서 매턴 탈락자 1명씩 추가 발생!
+    welcome_hell_extra_elim = 0
+    for idx, p in enumerate(alive_sorted_by_score):
+      _, _, _, has_welcome_hell = check_synergies(p["owned_auras"])
+      if has_welcome_hell:
+        welcome_hell_extra_elim += 1
+        if p["is_player"]:
+          special_events.append(f"🎪 **[웰컴 투더 헬 발동!]** 지옥의 열기로 근처 10위 내 전장에서 추가 탈락자가 발생합니다!")
+
+    total_elimination_count = elimination_count + welcome_hell_extra_elim
+
     eliminated_this_turn = []
-    for _ in range(elimination_count):
+    for _ in range(total_elimination_count):
       active_pool = [x for x in alive_sorted_by_score if x["status"] == "playing"]
       if active_pool:
         low_p = active_pool[-1]
@@ -625,7 +664,6 @@ with tab_battle:
 
             job_tag = f"<span style='color:#888; font-size:12px;'>[{log['job']}]</span>"
             
-            # 🌟 순위표 목록에서도 버프/디버프 상태(🚀, 🌀) 아이콘 표시
             status_badge = ""
             if log.get("buff_boss") or log.get("buff_prism"): status_badge += " <span style='color:#ff4b4b;'>🚀증가</span>"
             if log.get("debuff_slow"): status_badge += " <span style='color:#1c83e1;'>🌀감소</span>"
@@ -651,15 +689,18 @@ with tab_battle:
               status_txt = "🏆 우승" if p["status"] == "winner" else ("🟢 생존" if p["status"] == "playing" else "💀 탈락")
               styled_name = get_styled_name(p)
               
-              p_aq, p_sl = check_synergies(p["owned_auras"])
-              syn_tag = " 🐌" if p_sl else (" 🌊" if p_aq else "")
+              p_aq, p_sl, p_hw, p_wh = check_synergies(p["owned_auras"])
+              syn_tags = ""
+              if p_wh: syn_tags += " 🎪"
+              if p_hw: syn_tags += " 🎃"
+              if p_sl: syn_tags += " 🐌"
+              elif p_aq: syn_tags += " 🌊"
               
-              # 🌟 현황판 카드에도 버프(🚀) / 디버프(🌀) 상태 표시
               p_badge = ""
               if p["buff_boss_turns"] > 0 or p["buff_prism_turns"] > 0: p_badge += " 🚀"
               if p["debuff_slow_turns"] > 0: p_badge += " 🌀"
               
-              st.markdown(f"<div style='font-size:15px;'><b>{rank_badge}</b>{styled_name}{syn_tag}{p_badge} {diff_html}</div>", unsafe_allow_html=True)
+              st.markdown(f"<div style='font-size:15px;'><b>{rank_badge}</b>{styled_name}{syn_tags}{p_badge} {diff_html}</div>", unsafe_allow_html=True)
               st.caption(f"{status_txt} | [{p['job']}] | 누적: **{p['score']}점**")
               st.markdown(f"최근: {icons.get(p['last_aura'], '✨')} `{p['last_aura']}`" if p["last_denom"] > 0 else f"최근: {p['last_aura']}")
 
@@ -730,3 +771,52 @@ with tab_gacha:
         for hist in st.session_state.gacha_latest_history:
           icon = icons.get(hist["aura"], "✨")
           st.markdown(f"• **{hist['tries']}회차** | {icon} **{hist['aura']}** (`1 in {hist['denom']:,}`)")
+
+
+with tab_synergy:
+  st.subheader("📖 아우라 시너지 도감 및 상세 설명")
+  st.markdown("게임 내에서 특정 아우라 조합을 모으면 발동하는 **강력한 시너지 효과**들을 한눈에 확인하세요!")
+
+  st.markdown("---")
+
+  col_s1, col_s2 = st.columns(2)
+
+  with col_s1:
+    with st.container(border=True):
+      st.markdown("### 🎃 1. 해피 할로윈")
+      st.markdown("**조합 아우라**: 듀라한 + 망령 + 수확가")
+      st.markdown("**이모티콘**: 🎃👻🗡️")
+      st.markdown("""
+      > **효과 설명**:
+      > 해당 턴 순위표에서 본인 근처 **10등 사이(상하 5위 이내)**에 있는 플레이어 중 **1명의 점수 절반을 강탈**합니다! 
+      > 점수를 뺏긴 대상은 이번 턴에 획득할 점수를 **반토막(절반)**밖에 받지 못하는 치명적인 디버프를 받습니다.
+      """)
+
+    with st.container(border=True):
+      st.markdown("### 🌊 2. 아쿠아 (수족관)")
+      st.markdown("**조합 아우라**: 아쿠아리움 + 샤킨 + 포세이돈")
+      st.markdown("**이모티콘**: 🐠🦈🔱")
+      st.markdown("""
+      > **효과 설명**:
+      > 심해의 기운이 모여, 최고 등급 아우라 중 하나인 **레비아탄(`༒ 𝕷𝕰𝕁𝕴𝕬𝕿𝕳𝕬𝕹 ༒`)이 등장할 확률이 2배 증가**합니다!
+      """)
+
+  with col_s2:
+    with st.container(border=True):
+      st.markdown("### 🎪 3. 웰컴 투더 헬")
+      st.markdown("**조합 아우라**: 사도:베일 + 악몽의 하늘")
+      st.markdown("**이모티콘**: 🎃👁️🌌")
+      st.markdown("""
+      > **효과 설명**:
+      > 지옥의 문이 열리며, 본인 근처 사이 **10등 이내의 전장에서 매 턴마다 추가 탈락자가 1명씩 더 발생**합니다! 
+      > 주변 플레이어들의 생존을 위협하는 공포의 시너지입니다.
+      """)
+
+    with st.container(border=True):
+      st.markdown("### 🐌 4. 느려도 괜찮아 (수족관 심화)")
+      st.markdown("**조합 아우라**: 아쿠아리움 + 샤킨 + 포세이돈 + 레비아탄")
+      st.markdown("**이모티콘**: 🐠🦈🔱🌊")
+      st.markdown("""
+      > **효과 설명**:
+      > 수족관의 최종 완성 형태! 매 턴마다 **본인의 양옆(위아래 순위)에 있는 사람들에게 행운 2배 감소 디버프(🌀)**를 영구적으로 부여합니다.
+      """)
