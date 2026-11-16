@@ -176,7 +176,6 @@ JOBS = {
     "암살자": "🗡️ 매 턴 순위표 아래 사람 점수 -15점 차감"
 }
 
-# 과거 우승자 이름 목록 추출 (부활 특혜 및 👑 표식 대상 판별용)
 def get_past_winners_set():
   return {entry["winner"] for entry in st.session_state.hof}
 
@@ -248,7 +247,6 @@ def init_game(selected_job):
   past_winners = get_past_winners_set()
 
   def create_participant(pid, name, is_player, job):
-    # 플레이어의 경우 명예의 전당에 '나' 또는 '나 (플레이어)'로 등록된 적이 있으면 우승자로 인정
     clean_name = name.replace(" (플레이어)", "")
     has_won_before = (name in past_winners) or (clean_name in past_winners)
     return {
@@ -276,8 +274,8 @@ def init_game(selected_job):
         "buff_music_turns": 0,
         "debuff_slow_turns": 0,
         "locked_turns": 0,
-        "is_past_winner": has_won_before,               # 👑 역대 우승자 영구 표식 여부
-        "revive_shield": 1 if has_won_before else 0,    # 🛡️ 우승자 출신 죽음 1회 면제 특혜
+        "is_past_winner": has_won_before,
+        "revive_shield": 1 if has_won_before else 0,
     }
 
   participants = [create_participant(0, "나 (플레이어)", True, selected_job)]
@@ -296,17 +294,16 @@ tab_battle, tab_gacha, tab_synergy, tab_hof = st.tabs([
     "⚔️ 100인 포인트 배틀로얄", 
     "🎰 마스터 핸드 뽑기 창", 
     "📖 시너지 도감 & 설명", 
-    "🏆 명예의 전당"
+    "🏆 명예의 전당 & 데이터 관리"
 ])
 
 with tab_battle:
   if not st.session_state.game_started:
     st.markdown("""
     ### 📜 시스템 안내 & 특혜 안내
-    - **👑 우승자 전용 표식 (`👑`) & 부활 보호막 (`🛡️`)**: 명예의 전당에 등록된 전력이 있는 참가자(AI 또는 플레이어)는 **이름 옆에 전용 왕관 표식(`👑`)**이 달리며, **죽음 1회 면제 특혜**를 갖고 시작합니다!
-    - **💾 명예의 전당 자동 등재**: 게임 종료 시 우승자의 기록이 자동으로 `hof_data.json`에 저장됩니다.
+    - **👑 우승자 전용 표식 (`👑`) & 부활 보호막 (`🛡️`)**: 명예의 전당에 등록된 전력이 있는 참가자는 이름 옆에 왕관 표식이 달리며, **죽음 1회 면제 특혜**를 갖고 시작합니다!
+    - **💾 파일 다운로드 및 업로드**: `명예의 전당` 탭에서 언제든지 게임 데이터를 백업하거나 불러올 수 있습니다.
     - **⚡ 5초 자동 진행 (오토플레이)**: 상단의 '자동 진행' 체크박스를 켜면 5초마다 턴이 자동으로 진행됩니다.
-    - **🎭 히든 직업**: 도박사, 수집가, 암살자 / **10턴 주기 보스 레이드** / **아우라 시너지** 시스템 탑재
     """)
     
     selected_job = st.radio(
@@ -327,7 +324,6 @@ with tab_battle:
   alive_participants = [p for p in participants if p["status"] == "playing"]
   is_game_over = len(alive_participants) <= 1
 
-  # 오토 플레이 컨트롤 바
   col_auto1, col_auto2 = st.columns([2, 4])
   with col_auto1:
     auto_checked = st.checkbox("⚡ 5초 자동 진행 모드 (오토플레이)", value=st.session_state.auto_play)
@@ -581,7 +577,6 @@ with tab_battle:
 
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
 
-    # [시너지: 해피 할로윈] (10턴마다 발동)
     if t % 10 == 0:
       for idx, p in enumerate(alive_sorted_by_score):
         _, _, has_halloween, _, _ = check_synergies(p["owned_auras"])
@@ -598,7 +593,6 @@ with tab_battle:
             if p["is_player"]:
               special_events.append(f"🎃 **[해피 할로윈 발동!]** 10턴 주기로 근처 10위 내 {target['name']}님의 점수 절반({stolen_score}점) 강탈!")
 
-    # [암살자] 점수 차감
     for overall_idx, p in enumerate(alive_sorted_by_score):
       if p["job"] == "암살자" and overall_idx + 1 < len(alive_sorted_by_score):
         target_below = alive_sorted_by_score[overall_idx + 1]
@@ -635,7 +629,6 @@ with tab_battle:
 
     elimination_count = 2 if any(p["last_aura"] == "악몽의 하늘" for p in turn_results) else 1
 
-    # [시너지: 웰컴 투더 헬] 추가 탈락자 발생
     welcome_hell_extra_elim = 0
     for idx, p in enumerate(alive_sorted_by_score):
       _, _, _, has_welcome_hell, _ = check_synergies(p["owned_auras"])
@@ -651,7 +644,6 @@ with tab_battle:
       active_pool = [x for x in alive_sorted_by_score if x["status"] == "playing"]
       if active_pool:
         low_p = active_pool[-1]
-        # 부활 특혜(revive_shield)가 있으면 소모하며 탈락 면제
         if low_p["revive_shield"] > 0:
           low_p["revive_shield"] -= 1
           special_events.append(f"🛡️ **[부활 특혜 발동!]** 꼴찌 위기에 처한 👑 {low_p['name']}님이 부활 보호막으로 탈락을 면했습니다!")
@@ -662,7 +654,6 @@ with tab_battle:
         eliminated_this_turn.append(low_p)
         alive_sorted_by_score.remove(low_p)
 
-    # [시너지: 음악에 몸을 맡겨봐]
     grid_sorted = sorted(participants, key=lambda x: (0 if x["status"] in ["playing", "winner"] else 1, -x["score"]))
     for g_idx, p in enumerate(grid_sorted):
       if p["status"] == "playing":
@@ -685,7 +676,6 @@ with tab_battle:
         p["status"] = "winner"
         p["curr_overall_rank"] = 1
       
-      # [자동 명예의 전당 등록 기능]
       winner_obj = final_alive[0] if final_alive else alive_sorted_by_score[0]
       if "hof_recorded" not in st.session_state:
         st.session_state.hof_recorded = True
@@ -807,7 +797,6 @@ with tab_battle:
             else:
               name_str = f"<b>{log_name_text}</b>"
 
-            # 👑 역대 우승자 표식 추가
             winner_badge = " 👑" if log.get("is_past_winner", False) else ""
             job_tag = f"<span style='color:#888; font-size:12px;'>[{log['job']}]</span>"
             
@@ -868,7 +857,6 @@ with tab_battle:
                 status_txt = "🏆 우승" if p["status"] == "winner" else ("🟢 생존" if p["status"] == "playing" else "💀 탈락")
                 styled_name = get_styled_name(p)
                 
-                # 시너지 표식 + 👑 우승자 영구 표식 + 🛡️ 보호막 표식
                 p_aq, p_sl, p_hw, p_wh, p_mu = check_synergies(p["owned_auras"])
                 syn_tags = ""
                 if p.get("is_past_winner", False): syn_tags += " 👑"
@@ -1007,7 +995,7 @@ with tab_synergy:
     st.markdown("""
     > **특혜 설명**:
     > - **영구 표식 (`👑`)**: 현황판 및 순위표 이름 옆에 항상 챔피언 왕관이 표시됩니다.
-    > - **부활 보호막 (`🛡️`)**: 매 게임 시작 시 **죽음 1회 면제 보호막**을 기본 보유한 채 시작합니다. (즉사 스킬 또는 꼴찌 탈락 위기 시 1회 자동 방어)
+    > - **부활 보호막 (`🛡️`)**: 매 게임 시작 시 **죽음 1회 면제 보호막**을 기본 보유한 채 시작합니다.
     """)
 
   col_s1, col_s2 = st.columns(2)
@@ -1061,12 +1049,44 @@ with tab_synergy:
 
 
 with tab_hof:
-  st.subheader("🏆 명예의 전당 (Hall of Fame — 자동 연동 저장)")
-  st.markdown("아우라 시뮬레이터 배틀로얄 역사에 빛나는 전설적인 우승자들의 기록관입니다. 게임이 끝날 때마다 자동으로 `hof_data.json`에 저장 및 불러오기 됩니다.")
+  st.subheader("🏆 명예의 전당 & 파일 데이터 관리")
+  st.markdown("아우라 시뮬레이터 배틀로얄의 전설적인 우승자 기록관입니다. 아래에서 **JSON 파일 다운로드** 및 **파일 업로드(불러오기)**를 통해 명예의 전당 데이터를 관리할 수 있습니다.")
 
   st.markdown("---")
 
-  # 명예의 전당 카드를 2개씩 한 행에 그리도록 배치
+  # 파일 다운로드 및 업로드 UI 영역
+  col_dl, col_ul = st.columns(2)
+  with col_dl:
+    st.markdown("#### 📥 명예의 전당 백업 (다운로드)")
+    hof_json_str = json.dumps(st.session_state.hof, ensure_ascii=False, indent=4)
+    st.download_button(
+        label="📄 hof_data.json 다운로드하기",
+        data=hof_json_str,
+        file_name="hof_data.json",
+        mime="application/json",
+        use_container_width=True
+    )
+
+  with col_ul:
+    st.markdown("#### 📤 명예의 전당 복원 (파일 불러오기)")
+    uploaded_file = st.file_uploader("hof_data.json 파일을 업로드하세요", type=["json"], label_visibility="collapsed")
+    if uploaded_file is not None:
+      try:
+        loaded_data = json.load(uploaded_file)
+        if isinstance(loaded_data, list):
+          st.session_state.hof = loaded_data
+          save_hof(loaded_data)
+          st.success("🎉 명예의 전당 데이터를 성공적으로 불러왔습니다! 화면을 갱신합니다.")
+          time.sleep(1)
+          st.rerun()
+        else:
+          st.error("❌ 올바르지 않은 JSON 파일 형식입니다.")
+      except Exception as e:
+        st.error(f"❌ 파일을 읽는 중 오류가 발생했습니다: {e}")
+
+  st.markdown("---")
+  st.markdown("### 🏛️ 역대 챔피언 목록")
+
   hof_list = st.session_state.hof
   for i in range(0, len(hof_list), 2):
     cols = st.columns(2)
@@ -1083,8 +1103,6 @@ with tab_hof:
 
   st.markdown("---")
   st.markdown("### 🍀 역대 가장 운이 좋은 사람 랭킹 (전체 게임 통산 실시간 집계)")
-  st.markdown("현재 진행 중이거나 지금까지 플레이한 모든 턴 중에서 **가장 희귀하고 확률이 낮은(분모가 큰) 아우라**를 뽑은 행운의 주인공들을 실시간으로 집계합니다!")
-
   if st.session_state.game_started and 'participants' in st.session_state:
     all_history_records = []
     for p in st.session_state.participants:
