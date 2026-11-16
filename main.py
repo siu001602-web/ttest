@@ -160,7 +160,7 @@ def roll_gacha_luck():
 def get_boss_win_chance(best_denom):
   if best_denom >= 300000000: return 100
   elif best_denom >= 100000000: return 70
-  elif best_denom >= 50000050: return 50
+  elif best_denom >= 50000000: return 50
   elif best_denom >= 10000000: return 30
   elif best_denom >= 1000000: return 10
   return 5
@@ -520,7 +520,7 @@ with tab_battle:
         if p["is_player"]:
           special_events.append(f"🗡️ **[암살자 스킬]** 바로 아래 순위({target_below['name']})의 점수 하락(📉 -15점)!")
 
-    alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"], reverse=True))
+    alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
     for overall_idx, p in enumerate(alive_sorted_by_score, 1):
       if t == 1:
         p["prev_overall_rank"] = overall_idx
@@ -659,7 +659,6 @@ with tab_battle:
 
   st.info(st.session_state.turn_summary)
 
-  # [신기능 4]: 상위권 점수 추이 차트 표시
   if curr_turn > 0:
     with st.expander("📈 [상위권 점수 추이 그래프 보기]", expanded=False):
       top_players_for_chart = sorted(participants, key=lambda x: x["score"], reverse=True)[:5]
@@ -705,7 +704,6 @@ with tab_battle:
             st.markdown(f"<div style='padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,0.2);'><b>{log['turn_rank']}위</b> | {name_str} {job_tag}{status_badge} {diff_html} : {aura_str} | <code>+{log['earned']}점</code> (누적 <b>{log['total_score']}점</b>){elim_badge}</div>", unsafe_allow_html=True)
 
   with col_right:
-    # [신기능 3]: 참가자 관전 필터 및 상세 프로필 뷰어
     st.subheader("👥 참가자 현황판")
     
     filter_col1, filter_col2 = st.columns([1.5, 1])
@@ -762,7 +760,6 @@ with tab_battle:
                 st.markdown(f"<div style='font-size:14px;'><b>{rank_badge}</b>{styled_name}{syn_tags}{p_badge} {diff_html}</div>", unsafe_allow_html=True)
                 st.caption(f"{status_txt} | [{p['job']}] | 누적: **{p['score']}점**")
                 
-                # [신기능 3]: 상세 프로필 팝업(Expander)
                 with st.expander("🔍 상세 정보"):
                   st.markdown(f"**최고 아우라**: {icons.get(p['best_aura'], '✨')} `{p['best_aura']}`")
                   st.markdown(f"**보유 포션**: {p['potions']}개")
