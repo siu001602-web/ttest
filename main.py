@@ -160,7 +160,7 @@ def roll_gacha_luck():
 def get_boss_win_chance(best_denom):
   if best_denom >= 300000000: return 100
   elif best_denom >= 100000000: return 70
-  elif best_denom >= 50000000: return 50
+  elif best_denom >= 50000050: return 50
   elif best_denom >= 10000000: return 30
   elif best_denom >= 1000000: return 10
   return 5
@@ -189,6 +189,7 @@ def init_game(selected_job):
       "job": selected_job,
       "status": "playing",
       "score": 0,
+      "score_history": [0],
       "prev_overall_rank": 0,
       "curr_overall_rank": 0,
       "rank_diff": 0,
@@ -216,6 +217,7 @@ def init_game(selected_job):
         "job": random.choice(job_keys),
         "status": "playing",
         "score": 0,
+        "score_history": [0],
         "prev_overall_rank": 0,
         "curr_overall_rank": 0,
         "rank_diff": 0,
@@ -518,7 +520,7 @@ with tab_battle:
         if p["is_player"]:
           special_events.append(f"🗡️ **[암살자 스킬]** 바로 아래 순위({target_below['name']})의 점수 하락(📉 -15점)!")
 
-    alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
+    alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"], reverse=True))
     for overall_idx, p in enumerate(alive_sorted_by_score, 1):
       if t == 1:
         p["prev_overall_rank"] = overall_idx
@@ -583,6 +585,7 @@ with tab_battle:
     for p in participants:
       if p["status"] == "playing":
         p["potions"] += 1
+      p["score_history"].append(p["score"])
 
     final_alive = [p for p in participants if p["status"] == "playing"]
     if len(final_alive) <= 1:
@@ -656,6 +659,13 @@ with tab_battle:
 
   st.info(st.session_state.turn_summary)
 
+  # [신기능 4]: 상위권 점수 추이 차트 표시
+  if curr_turn > 0:
+    with st.expander("📈 [상위권 점수 추이 그래프 보기]", expanded=False):
+      top_players_for_chart = sorted(participants, key=lambda x: x["score"], reverse=True)[:5]
+      chart_data = {p["name"]: p["score_history"] for p in top_players_for_chart}
+      st.line_chart(chart_data)
+
   col_left, col_right = st.columns([1, 1.4])
   with col_left:
     if is_game_over:
@@ -695,36 +705,73 @@ with tab_battle:
             st.markdown(f"<div style='padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,0.2);'><b>{log['turn_rank']}위</b> | {name_str} {job_tag}{status_badge} {diff_html} : {aura_str} | <code>+{log['earned']}점</code> (누적 <b>{log['total_score']}점</b>){elim_badge}</div>", unsafe_allow_html=True)
 
   with col_right:
+    # [신기능 3]: 참가자 관전 필터 및 상세 프로필 뷰어
     st.subheader("👥 참가자 현황판")
-    sorted_participants = sorted(participants, key=lambda x: (0 if x["status"] in ["playing", "winner"] else 1, -x["score"]))
-    with st.container(height=600, border=True):
-      cols_per_row = 3
-      for i in range(0, len(sorted_participants), cols_per_row):
-        row_items = sorted_participants[i : i + cols_per_row]
-        grid_cols = st.columns(cols_per_row)
-        for idx, p in enumerate(row_items):
-          with grid_cols[idx]:
-            with st.container(border=True):
-              rank_badge = f"#{p['curr_overall_rank']} " if curr_turn > 0 and p["status"] in ["playing", "winner"] else ""
-              diff_html = get_rank_diff_html(p["rank_diff"], curr_turn) if curr_turn > 0 and p["status"] in ["playing", "winner"] else ""
-              status_txt = "🏆 우승" if p["status"] == "winner" else ("🟢 생존" if p["status"] == "playing" else "💀 탈락")
-              styled_name = get_styled_name(p)
-              
-              p_aq, p_sl, p_hw, p_wh, p_mu = check_synergies(p["owned_auras"])
-              syn_tags = ""
-              if p_mu: syn_tags += " 🎼"
-              if p_wh: syn_tags += " 🎪"
-              if p_hw: syn_tags += " 🎃"
-              if p_sl: syn_tags += " 🐌"
-              elif p_aq: syn_tags += " 🌊"
-              
-              p_badge = ""
-              if p["buff_boss_turns"] > 0 or p["buff_prism_turns"] > 0 or p.get("buff_music_turns", 0) > 0: p_badge += " 🚀"
-              if p["debuff_slow_turns"] > 0: p_badge += " 🌀"
-              
-              st.markdown(f"<div style='font-size:15px;'><b>{rank_badge}</b>{styled_name}{syn_tags}{p_badge} {diff_html}</div>", unsafe_allow_html=True)
-              st.caption(f"{status_txt} | [{p['job']}] | 누적: **{p['score']}점**")
-              st.markdown(f"최근: {icons.get(p['last_aura'], '✨')} `{p['last_aura']}`" if p["last_denom"] > 0 else f"최근: {p['last_aura']}")
+    
+    filter_col1, filter_col2 = st.columns([1.5, 1])
+    with filter_col1:
+      filter_option = st.selectbox(
+          "참가자 필터",
+          ["전체 보기", "생존자만 보기", "1억 이상 아우라 보유자", "시너지 보유자"],
+          label_visibility="collapsed"
+      )
+    with filter_col2:
+      search_query = st.text_input("이름 검색", placeholder="참가자 검색", label_visibility="collapsed")
+
+    filtered_participants = participants
+    if filter_option == "생존자만 보기":
+      filtered_participants = [p for p in participants if p["status"] == "playing"]
+    elif filter_option == "1억 이상 아우라 보유자":
+      filtered_participants = [p for p in participants if p["best_denom"] >= 100000000]
+    elif filter_option == "시너지 보유자":
+      filtered_participants = [p for p in participants if any(check_synergies(p["owned_auras"]))]
+
+    if search_query:
+      filtered_participants = [p for p in filtered_participants if search_query in p["name"]]
+
+    sorted_participants = sorted(filtered_participants, key=lambda x: (0 if x["status"] in ["playing", "winner"] else 1, -x["score"]))
+    
+    with st.container(height=520, border=True):
+      if not sorted_participants:
+        st.caption("조건에 맞는 참가자가 없습니다.")
+      else:
+        cols_per_row = 3
+        for i in range(0, len(sorted_participants), cols_per_row):
+          row_items = sorted_participants[i : i + cols_per_row]
+          grid_cols = st.columns(cols_per_row)
+          for idx, p in enumerate(row_items):
+            with grid_cols[idx]:
+              with st.container(border=True):
+                rank_badge = f"#{p['curr_overall_rank']} " if curr_turn > 0 and p["status"] in ["playing", "winner"] else ""
+                diff_html = get_rank_diff_html(p["rank_diff"], curr_turn) if curr_turn > 0 and p["status"] in ["playing", "winner"] else ""
+                status_txt = "🏆 우승" if p["status"] == "winner" else ("🟢 생존" if p["status"] == "playing" else "💀 탈락")
+                styled_name = get_styled_name(p)
+                
+                p_aq, p_sl, p_hw, p_wh, p_mu = check_synergies(p["owned_auras"])
+                syn_tags = ""
+                if p_mu: syn_tags += " 🎼"
+                if p_wh: syn_tags += " 🎪"
+                if p_hw: syn_tags += " 🎃"
+                if p_sl: syn_tags += " 🐌"
+                elif p_aq: syn_tags += " 🌊"
+                
+                p_badge = ""
+                if p["buff_boss_turns"] > 0 or p["buff_prism_turns"] > 0 or p.get("buff_music_turns", 0) > 0: p_badge += " 🚀"
+                if p["debuff_slow_turns"] > 0: p_badge += " 🌀"
+                
+                st.markdown(f"<div style='font-size:14px;'><b>{rank_badge}</b>{styled_name}{syn_tags}{p_badge} {diff_html}</div>", unsafe_allow_html=True)
+                st.caption(f"{status_txt} | [{p['job']}] | 누적: **{p['score']}점**")
+                
+                # [신기능 3]: 상세 프로필 팝업(Expander)
+                with st.expander("🔍 상세 정보"):
+                  st.markdown(f"**최고 아우라**: {icons.get(p['best_aura'], '✨')} `{p['best_aura']}`")
+                  st.markdown(f"**보유 포션**: {p['potions']}개")
+                  st.markdown(f"**수집한 아우라 종류**: {len(p['owned_auras'])}개")
+                  if p["history"]:
+                    recent_history = p["history"][-3:]
+                    st.markdown("**최근 3턴 기록**:")
+                    for rh in recent_history:
+                      st.caption(f"- {rh['turn']}턴: {rh['aura']} (1 in {rh['denom']:,})")
 
   st.divider()
   st.subheader("🍀 이번 게임 실시간 최고 행운 랭킹 (TOP 10)")
@@ -903,7 +950,7 @@ with tab_hof:
       st.markdown("- **사용 시너지**: `시너지 없음`")
       st.caption("어떠한 시너지 조합에도 의존하지 않고 오직 순수한 실력과 운만으로 왕좌를 차지한 시즌 2 우승 기록입니다.")
 
-  # 🌟 시즌 3 우승자 카드 (업데이트 반영!)
+  # 🌟 시즌 3 우승자 카드
   with col_season3:
     with st.container(border=True):
       st.markdown("### 🥇 시즌 3 챔피언")
@@ -937,7 +984,7 @@ with tab_hof:
         for rank_idx, rec in enumerate(all_history_records[:15], 1):
           p_label = f"{rec['name']} (나)" if rec['is_player'] else rec['name']
           icon = icons.get(rec['aura'], "✨")
-          st.markdown(f"**{rank_idx}위** | 👤 **{p_label}** ([{rec['job']}]) — {rec['turn']}턴차에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
+          st.markdown(f"**{r_idx}위** | 👤 **{p_label}** ([{rec['job']}]) — {rec['turn']}턴차에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
     else:
       st.info("아직 수집된 뽑기 기록이 없습니다. 게임을 진행해 주세요!")
   else:
