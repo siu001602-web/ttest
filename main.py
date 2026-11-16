@@ -3,7 +3,6 @@ import os
 import random
 import time
 import streamlit as st
-import streamlit.components.v1 as components
 
 # 페이지 설정
 st.set_page_config(
@@ -21,7 +20,6 @@ def load_hof():
         return json.load(f)
     except:
       pass
-  # 기본 데이터 (시즌 1~4 초기값)
   return [
       {
           "season": 1,
@@ -324,6 +322,7 @@ with tab_battle:
   alive_participants = [p for p in participants if p["status"] == "playing"]
   is_game_over = len(alive_participants) <= 1
 
+  # 안정적인 Streamlit 내장 오토플레이 처리 로직
   col_auto1, col_auto2 = st.columns([2, 4])
   with col_auto1:
     auto_checked = st.checkbox("⚡ 5초 자동 진행 모드 (오토플레이)", value=st.session_state.auto_play)
@@ -333,45 +332,6 @@ with tab_battle:
   with col_auto2:
     if st.session_state.auto_play and not is_game_over:
       st.markdown("🔥 **[오토플레이 작동 중...]** 5초 뒤 다음 턴으로 자동 갱신됩니다.")
-      components.html(
-          """
-          <script>
-            setTimeout(function() {
-              window.parent.location.reload();
-            }, 5000);
-          </script>
-          """,
-          height=0,
-      )
-
-  col_t1, col_t2, col_t3, col_t4 = st.columns(4)
-  with col_t1:
-    st.metric("진행 턴 수", f"{curr_turn} 턴", f"보스전까지 {10 - (curr_turn % 10)}턴" if curr_turn % 10 != 0 or curr_turn == 0 else "🔥 보스 턴!")
-  with col_t2:
-    st.metric("남은 생존자", f"{len(alive_participants)}명")
-  with col_t3:
-    st.metric("내 직업 / 최고 아우라", f"{player_info['job']}", f"{player_info['best_aura']}")
-  with col_t4:
-    crown_str = "👑 " if player_info.get("is_past_winner", False) else ""
-    shield_status = f" (🛡️ 보호막: {player_info['revive_shield']}개)" if player_info['revive_shield'] > 0 else ""
-    p_status_str = f"{crown_str}🏆 최종 우승!" if player_info["status"] == "winner" else (f"{crown_str}💀 탈락" if player_info["status"] == "eliminated" else f"{crown_str}🎮 생존{shield_status}")
-    st.metric("내 상태", p_status_str)
-
-  status_icons = []
-  if player_info.get("is_past_winner", False): status_icons.append("👑 **역대 챔피언 출신**")
-  if player_info.get("buff_music_turns", 0) > 0: status_icons.append(f"🎼 **음악 시너지 버프 (행운 50배!)** ({player_info['buff_music_turns']}턴 남음)")
-  if player_info["buff_boss_turns"] > 0: status_icons.append(f"🚀 **보스 버프 (행운 5배)** ({player_info['buff_boss_turns']}턴 남음)")
-  if player_info["use_potion_next"]: status_icons.append("🚀 **포션 대기중 (행운 2배)**")
-  if player_info["buff_prism_turns"] > 0: status_icons.append(f"🚀 **프리즘 버프 (행운 2배)** ({player_info['buff_prism_turns']}턴 남음)")
-  if player_info["debuff_slow_turns"] > 0: status_icons.append("🌀 **디버프 피격 (행운 2배 감소)**")
-  if player_info["revive_shield"] > 0: status_icons.append(f"🛡️ **우승자 부활 보호막 활성화됨** (남은 횟수: {player_info['revive_shield']}회)")
-
-  if status_icons:
-    st.warning("⚡ [내 상태 정보]: " + " | ".join(status_icons))
-  else:
-    st.info("⚡ [내 상태]: ⚪ 일반 상태")
-
-  st.divider()
 
   def get_rank_diff_html(diff, curr_turn_num):
     if curr_turn_num <= 1:
@@ -751,7 +711,14 @@ with tab_battle:
     next_t = curr_turn + 1
     boss_tag = " [👑 보스 레이드!]" if next_t % 10 == 0 else ""
     btn_label = f"🎲 {next_t}턴 진행{boss_tag}" if player_info["status"] == "playing" else f"👁️ {next_t}턴 관전{boss_tag}"
+    
     if st.button(btn_label, type="primary", use_container_width=True):
+      process_point_turn()
+      st.rerun()
+
+    # 오토플레이 활성화 시 5초 대기 후 자동으로 다음 턴 진행
+    if st.session_state.auto_play:
+      time.sleep(5)
       process_point_turn()
       st.rerun()
   else:
@@ -1054,7 +1021,6 @@ with tab_hof:
 
   st.markdown("---")
 
-  # 파일 다운로드 및 업로드 UI 영역
   col_dl, col_ul = st.columns(2)
   with col_dl:
     st.markdown("#### 📥 명예의 전당 백업 (다운로드)")
@@ -1102,7 +1068,7 @@ with tab_hof:
             st.caption(data["desc"])
 
   st.markdown("---")
-  st.markdown("### 🍀 역대 가장 운이 좋은 사람 랭킹 (전체 게임 통산 실시간 집계)")
+  st.markdown("### 🍀 이번 게임 실시간 최고 행운 랭킹 (TOP 10)")
   if st.session_state.game_started and 'participants' in st.session_state:
     all_history_records = []
     for p in st.session_state.participants:
@@ -1126,7 +1092,7 @@ with tab_hof:
           p_label = f"{rec['name']} (나)" if rec['is_player'] else rec['name']
           w_badge = " 👑" if rec["is_past_winner"] else ""
           icon = icons.get(rec['aura'], "✨")
-          st.markdown(f"**{rank_idx}위** | 👤 **{p_label}**{w_badge} ([{rec['job']}]) — {rec['turn']}턴차에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
+          st.markdown(f"**{r_idx}위** | 👤 **{p_label}**{w_badge} ([{rec['job']}]) — {rec['turn']}턴차에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
     else:
       st.info("아직 수집된 뽑기 기록이 없습니다. 게임을 진행해 주세요!")
   else:
