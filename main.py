@@ -44,7 +44,7 @@ def load_hof():
       },
       {
           "season": 4,
-          "winner": "오딘의 까마귀",
+          "winner": "오딘의까마귀",
           "score": 4923,
           "synergy": "아쿠아 🌊",
           "desc": "심해의 기운(아쿠아)을 활용해 흔들림 없는 상위권 운영을 선보이며 시즌 4 왕좌를 차지한 챔피언입니다.",
@@ -322,7 +322,6 @@ with tab_battle:
   alive_participants = [p for p in participants if p["status"] == "playing"]
   is_game_over = len(alive_participants) <= 1
 
-  # 안정적인 Streamlit 내장 오토플레이 처리 로직
   col_auto1, col_auto2 = st.columns([2, 4])
   with col_auto1:
     auto_checked = st.checkbox("⚡ 5초 자동 진행 모드 (오토플레이)", value=st.session_state.auto_play)
@@ -716,7 +715,6 @@ with tab_battle:
       process_point_turn()
       st.rerun()
 
-    # 오토플레이 활성화 시 5초 대기 후 자동으로 다음 턴 진행
     if st.session_state.auto_play:
       time.sleep(5)
       process_point_turn()
@@ -1092,7 +1090,7 @@ with tab_hof:
           p_label = f"{rec['name']} (나)" if rec['is_player'] else rec['name']
           w_badge = " 👑" if rec["is_past_winner"] else ""
           icon = icons.get(rec['aura'], "✨")
-          st.markdown(f"**{r_idx}위** | 👤 **{p_label}**{w_badge} ([{rec['job']}]) — {rec['turn']}턴차에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
+          st.markdown(f"**{rank_idx}위** | 👤 **{p_label}**{w_badge} ([{rec['job']}]) — {rec['turn']}턴차에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
     else:
       st.info("아직 수집된 뽑기 기록이 없습니다. 게임을 진행해 주세요!")
   else:
