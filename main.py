@@ -494,7 +494,7 @@ with tab_battle:
 
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
 
-    # [시너지: 해피 할로윈] (듀라한+망령+수확가) - 10턴마다 1번 발동하도록 수정
+    # [시너지: 해피 할로윈] (듀라한+망령+수확가) - 10턴마다 1번 발동
     if t % 10 == 0:
       for idx, p in enumerate(alive_sorted_by_score):
         _, _, has_halloween, _, _ = check_synergies(p["owned_auras"])
@@ -731,7 +731,6 @@ with tab_battle:
           grid_cols = st.columns(cols_per_row)
           for idx, p in enumerate(row_items):
             with grid_cols[idx]:
-              # [변경사항 2]: 탈락한 AI 배경 빨간색(투명한 레드 톤) 칠하기
               is_eliminated = (p["status"] == "eliminated")
               bg_css = "background-color: rgba(255, 0, 0, 0.15); padding: 4px; border-radius: 6px;" if is_eliminated else ""
               
@@ -925,7 +924,7 @@ with tab_hof:
 
   st.markdown("---")
 
-  col_season1, col_season2, col_season3 = st.columns(3)
+  col_season1, col_season2 = st.columns(2)
 
   # 🌟 시즌 1 우승자 카드
   with col_season1:
@@ -945,6 +944,8 @@ with tab_hof:
       st.markdown("- **사용 시너지**: `시너지 없음`")
       st.caption("어떠한 시너지 조합에도 의존하지 않고 오직 순수한 실력과 운만으로 왕좌를 차지한 시즌 2 우승 기록입니다.")
 
+  col_season3, col_season4 = st.columns(2)
+
   # 🌟 시즌 3 우승자 카드
   with col_season3:
     with st.container(border=True):
@@ -953,6 +954,15 @@ with tab_hof:
       st.markdown("- **최종 점수**: `8,646점`")
       st.markdown("- **사용 시너지**: `아쿠아 🌊`, `웰컴 투더 헬 🎪`")
       st.caption("심해의 축복과 지옥의 전장을 동시에 지배하며 압도적인 점수 차로 왕좌에 오른 시즌 3 챔피언입니다.")
+
+  # 🌟 시즌 4 우승자 카드 (신규 등재)
+  with col_season4:
+    with st.container(border=True):
+      st.markdown("### 🥇 시즌 4 챔피언")
+      st.markdown("👑 **우승자**: `오딘의 까마귀`")
+      st.markdown("- **최종 점수**: `4,923점`")
+      st.markdown("- **사용 시너지**: `아쿠아 🌊`")
+      st.caption("심해의 기운(아쿠아)을 활용해 흔들림 없는 상위권 운영을 선보이며 시즌 4 왕좌를 차지한 챔피언입니다.")
 
   st.markdown("---")
   st.markdown("### 🍀 역대 가장 운이 좋은 사람 랭킹 (전체 게임 통산 실시간 집계)")
@@ -979,7 +989,7 @@ with tab_hof:
         for rank_idx, rec in enumerate(all_history_records[:15], 1):
           p_label = f"{rec['name']} (나)" if rec['is_player'] else rec['name']
           icon = icons.get(rec['aura'], "✨")
-          st.markdown(f"**{r_idx}위** | 👤 **{p_label}** ([{rec['job']}]) — {rec['turn']}턴차에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
+          st.markdown(f"**{rank_idx}위** | 👤 **{p_label}** ([{rec['job']}]) — {rec['turn']}턴차에 {icon} `{rec['aura']}` 획득! (`1 in {rec['denom']:,}`)")
     else:
       st.info("아직 수집된 뽑기 기록이 없습니다. 게임을 진행해 주세요!")
   else:
