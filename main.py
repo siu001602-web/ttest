@@ -434,11 +434,11 @@ with tab_battle:
             if 0 <= neighbor_idx < len(alive):
               target_n = alive[neighbor_idx]
               target_n["locked_turns"] = 2
-              absorbed = target_n["score"] // 5
+              absorbed = target_n["score"] // 3
               target_n["score"] -= absorbed
               p["score"] += absorbed
               total_absorbed += absorbed
-          special_events.append(f"🕸️ **[드림캐쳐]** 주변 인물 2턴 잠금 및 총 점수 1/5({total_absorbed}점) 흡수!")
+          special_events.append(f"🕸️ **[드림캐쳐]** 주변 인물 2턴 잠금 및 총 점수 1/3({total_absorbed}점) 흡수!")
         elif aura == "𝓘𝓬𝓮𝓐𝓰𝓮":
           for neighbor_idx in [idx - 1, idx + 1]:
             if 0 <= neighbor_idx < len(alive):
@@ -568,7 +568,6 @@ with tab_battle:
         alive_sorted_by_score.remove(low_p)
 
     # [시너지: 음악에 몸을 맡겨봐] (자장가 + 심포니)
-    # 참가자 현황판(3열 그리드 기준)에서 본인과 같은 줄에 있는 사람이 1억 이상 아우라를 뽑으면 다음 턴 행운 50배 증가
     grid_sorted = sorted(participants, key=lambda x: (0 if x["status"] in ["playing", "winner"] else 1, -x["score"]))
     for g_idx, p in enumerate(grid_sorted):
       if p["status"] == "playing":
@@ -576,7 +575,6 @@ with tab_battle:
         if has_music:
           row_start = (g_idx // 3) * 3
           row_members = grid_sorted[row_start : row_start + 3]
-          # 같은 줄에 있는 다른 사람이 이번 턴에 1억 이상 아우라를 뽑았는지 체크
           if any(m != p and m["last_denom"] >= 100000000 for m in row_members):
             p["buff_music_turns"] = 1
             if p["is_player"]:
@@ -885,7 +883,7 @@ with tab_hof:
 
   st.markdown("---")
 
-  col_season1, col_season2 = st.columns(2)
+  col_season1, col_season2, col_season3 = st.columns(3)
 
   # 🌟 시즌 1 우승자 카드
   with col_season1:
@@ -893,8 +891,8 @@ with tab_hof:
       st.markdown("### 🥇 시즌 1 챔피언")
       st.markdown("👑 **우승자**: `실버스타`")
       st.markdown("- **최종 점수**: `4,968점`")
-      st.markdown("- **사용 시너지**: `느려도 괜찮아 🐌` (아쿠아리움 + 샤킨 + 포세이돈 + 레비아탄)")
-      st.caption("수많은 위협 속에서도 완벽한 디버프 진형을 구축하여 100인 배틀로얄의 정상에 오른 기념비적인 시즌 1 우승 기록입니다.")
+      st.markdown("- **사용 시너지**: `느려도 괜찮아 🐌`")
+      st.caption("완벽한 디버프 진형을 구축하여 100인 배틀로얄의 정상에 오른 기념비적인 시즌 1 우승 기록입니다.")
 
   # 🌟 시즌 2 우승자 카드
   with col_season2:
@@ -903,7 +901,16 @@ with tab_hof:
       st.markdown("👑 **우승자**: `헤파이스토스`")
       st.markdown("- **최종 점수**: `4,815점`")
       st.markdown("- **사용 시너지**: `시너지 없음`")
-      st.caption("어떠한 시너지 조합에도 의존하지 않고 오직 순수한 실력과 운만으로 100인의 경쟁자를 꺾고 왕좌를 차지한 시즌 2 우승 기록입니다.")
+      st.caption("어떠한 시너지 조합에도 의존하지 않고 오직 순수한 실력과 운만으로 왕좌를 차지한 시즌 2 우승 기록입니다.")
+
+  # 🌟 시즌 3 우승자 카드 (업데이트 반영!)
+  with col_season3:
+    with st.container(border=True):
+      st.markdown("### 🥇 시즌 3 챔피언")
+      st.markdown("👑 **우승자**: `무지개빛`")
+      st.markdown("- **최종 점수**: `8,646점`")
+      st.markdown("- **사용 시너지**: `아쿠아 🌊`, `웰컴 투더 헬 🎪`")
+      st.caption("심해의 축복과 지옥의 전장을 동시에 지배하며 압도적인 점수 차로 왕좌에 오른 시즌 3 챔피언입니다.")
 
   st.markdown("---")
   st.markdown("### 🍀 역대 가장 운이 좋은 사람 랭킹 (전체 게임 통산 실시간 집계)")
