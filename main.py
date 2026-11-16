@@ -189,7 +189,6 @@ def init_game(selected_job):
       "job": selected_job,
       "status": "playing",
       "score": 0,
-      "score_history": [0],
       "prev_overall_rank": 0,
       "curr_overall_rank": 0,
       "rank_diff": 0,
@@ -217,7 +216,6 @@ def init_game(selected_job):
         "job": random.choice(job_keys),
         "status": "playing",
         "score": 0,
-        "score_history": [0],
         "prev_overall_rank": 0,
         "curr_overall_rank": 0,
         "rank_diff": 0,
@@ -258,7 +256,7 @@ with tab_battle:
     ### 📜 시스템 안내
     - **🎭 히든 직업**: 도박사(1억 이상 2배 / **100만 미만 획득 시 점수 0점** - 아케인은 생존), 수집가(+20점), 암살자(-15점)
     - **👑 10턴 주기 솔로 보스 레이드**: 승리 시 3턴간 행운 5배 폭증(🚀)!
-    - **🧬 아우라 시너지**: 수족관(`[아쿠아]`, `[느려도 괜찮아]`), `[해피 할로윈]`, `[웰컴 투더 헬]`, `[음악에 몸을 맡겨봐]`
+    - **🧬 아우라 시너지**: 수족관(`[아쿠아]`, `[느려도 괜찮아]`), `[해피 할로윈]` (10턴마다 발동), `[웰컴 투더 헬]`, `[음악에 몸을 맡겨봐]`
     """)
     
     selected_job = st.radio(
@@ -496,21 +494,22 @@ with tab_battle:
 
     alive_sorted_by_score = sorted(current_alive_after_powers, key=lambda x: (x["score"], x["last_denom"]), reverse=True)
 
-    # [시너지: 해피 할로윈] (듀라한+망령+수확가)
-    for idx, p in enumerate(alive_sorted_by_score):
-      _, _, has_halloween, _, _ = check_synergies(p["owned_auras"])
-      if has_halloween:
-        start_range = max(0, idx - 5)
-        end_range = min(len(alive_sorted_by_score), idx + 6)
-        candidates = [alive_sorted_by_score[i] for i in range(start_range, end_range) if i != idx]
-        if candidates:
-          target = random.choice(candidates)
-          stolen_score = target["score"] // 2
-          target["score"] -= stolen_score
-          p["score"] += stolen_score
-          target["last_earned"] = target.get("last_earned", 0) // 2
-          if p["is_player"]:
-            special_events.append(f"🎃 **[해피 할로윈!]** 근처 10위 내 {target['name']}님의 점수 절반({stolen_score}점) 강탈!")
+    # [시너지: 해피 할로윈] (듀라한+망령+수확가) - 10턴마다 1번 발동하도록 수정
+    if t % 10 == 0:
+      for idx, p in enumerate(alive_sorted_by_score):
+        _, _, has_halloween, _, _ = check_synergies(p["owned_auras"])
+        if has_halloween:
+          start_range = max(0, idx - 5)
+          end_range = min(len(alive_sorted_by_score), idx + 6)
+          candidates = [alive_sorted_by_score[i] for i in range(start_range, end_range) if i != idx]
+          if candidates:
+            target = random.choice(candidates)
+            stolen_score = target["score"] // 2
+            target["score"] -= stolen_score
+            p["score"] += stolen_score
+            target["last_earned"] = target.get("last_earned", 0) // 2
+            if p["is_player"]:
+              special_events.append(f"🎃 **[해피 할로윈 발동!]** 10턴 주기로 근처 10위 내 {target['name']}님의 점수 절반({stolen_score}점) 강탈!")
 
     # [암살자] 점수 차감
     for overall_idx, p in enumerate(alive_sorted_by_score):
@@ -585,7 +584,6 @@ with tab_battle:
     for p in participants:
       if p["status"] == "playing":
         p["potions"] += 1
-      p["score_history"].append(p["score"])
 
     final_alive = [p for p in participants if p["status"] == "playing"]
     if len(final_alive) <= 1:
@@ -658,12 +656,6 @@ with tab_battle:
       st.rerun()
 
   st.info(st.session_state.turn_summary)
-
-  if curr_turn > 0:
-    with st.expander("📈 [상위권 점수 추이 그래프 보기]", expanded=False):
-      top_players_for_chart = sorted(participants, key=lambda x: x["score"], reverse=True)[:5]
-      chart_data = {p["name"]: p["score_history"] for p in top_players_for_chart}
-      st.line_chart(chart_data)
 
   col_left, col_right = st.columns([1, 1.4])
   with col_left:
@@ -739,6 +731,11 @@ with tab_battle:
           grid_cols = st.columns(cols_per_row)
           for idx, p in enumerate(row_items):
             with grid_cols[idx]:
+              # [변경사항 2]: 탈락한 AI 배경 빨간색(투명한 레드 톤) 칠하기
+              is_eliminated = (p["status"] == "eliminated")
+              bg_css = "background-color: rgba(255, 0, 0, 0.15); padding: 4px; border-radius: 6px;" if is_eliminated else ""
+              
+              st.markdown(f"<div style='{bg_css}'>", unsafe_allow_html=True)
               with st.container(border=True):
                 rank_badge = f"#{p['curr_overall_rank']} " if curr_turn > 0 and p["status"] in ["playing", "winner"] else ""
                 diff_html = get_rank_diff_html(p["rank_diff"], curr_turn) if curr_turn > 0 and p["status"] in ["playing", "winner"] else ""
@@ -769,6 +766,7 @@ with tab_battle:
                     st.markdown("**최근 3턴 기록**:")
                     for rh in recent_history:
                       st.caption(f"- {rh['turn']}턴: {rh['aura']} (1 in {rh['denom']:,})")
+              st.markdown("</div>", unsafe_allow_html=True)
 
   st.divider()
   st.subheader("🍀 이번 게임 실시간 최고 행운 랭킹 (TOP 10)")
@@ -873,12 +871,12 @@ with tab_synergy:
 
   with col_s1:
     with st.container(border=True):
-      st.markdown("### 🎃 1. 해피 할로윈")
+      st.markdown("### 🎃 1. 해피 할로윈 (10턴 주기 발동)")
       st.markdown("**조합 아우라**: 듀라한 + 망령 + 수확가")
       st.markdown("**이모티콘**: 🎃👻🗡️")
       st.markdown("""
       > **효과 설명**:
-      > 해당 턴 순위표에서 본인 근처 **10등 사이(상하 5위 이내)**에 있는 플레이어 중 **1명의 점수 절반을 강탈**합니다! 
+      > **매 10턴마다** 해당 턴 순위표에서 본인 근처 **10등 사이(상하 5위 이내)**에 있는 플레이어 중 **1명의 점수 절반을 강탈**합니다! 
       > 점수를 뺏긴 대상은 이번 턴에 획득할 점수를 **반토막(절반)**밖에 받지 못하는 치명적인 디버프를 받습니다.
       """)
 
